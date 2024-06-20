@@ -1,4 +1,6 @@
 #generic files/directories to ignore
+Debug/
+Release/
 Win32/
 x64/
 ipch/

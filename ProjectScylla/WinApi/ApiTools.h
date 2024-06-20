@@ -5,6 +5,7 @@
 
 namespace ApiTools
 {
+	void CloseHandle( HANDLE hObject );
 	SIZE_T __stdcall VirtualQuery( LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength );
 	LPVOID __stdcall VirtualAlloc( LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect );
 	BOOL __stdcall VirtualProtect( LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect );
@@ -28,7 +29,6 @@ namespace ApiTools
 	HANDLE __stdcall OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId );
 
 	HANDLE WINAPI CreateRemoteThread( HANDLE hProcess, void*lpStartAddress, LPVOID lpParameter );
-
 
 	template <typename A = uintptr_t, typename B = uint8_t*>
 	inline bool WriteProtect( HANDLE hProcess, A pAddress, void* pVal, size_t szSize )

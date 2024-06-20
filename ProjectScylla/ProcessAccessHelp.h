@@ -117,8 +117,6 @@ public:
 	 */
 	static bool openProcessHandle(DWORD dwPID);
 
-	static HANDLE NativeOpenProcess(DWORD dwDesiredAccess, DWORD dwProcessId);
-
 	static void closeProcessHandle();
 
 	/*

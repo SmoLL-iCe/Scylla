@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include "Tools/Logs.h"
+#include "WinApi/ApiTools.h"
 
 //#define DEBUG_COMMENTS
 
@@ -213,9 +214,9 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
     Process process;
     WCHAR tempProcessName[ MAX_PATH * 2 ] = { 0 };
 
-    process.PID = (DWORD)pProcess->UniqueProcessId;
+    process.PID = static_cast<DWORD>( reinterpret_cast<size_t>( pProcess->UniqueProcessId ) );
 
-    HANDLE hProcess = ProcessAccessHelp::NativeOpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, process.PID );
+    HANDLE hProcess = ApiTools::OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process.PID );
 
     if ( hProcess )
     {

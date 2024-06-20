@@ -2,6 +2,7 @@
 #include "ApiTools.h"
 #include <fstream>
 #include "ntos.h"
+#include "../Tools/Logs.h"
 
 SIZE_T __stdcall ApiTools::VirtualQuery( LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
 {
@@ -86,5 +87,30 @@ BOOL __stdcall ApiTools::WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddre
 
 HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId ) {
 
+	HANDLE hProcess = 0;
+
+	CLIENT_ID cid = { 0 };
+
+	OBJECT_ATTRIBUTES ObjectAttributes{};
+
+	InitializeObjectAttributes( &ObjectAttributes, 0, 0, 0, 0 );
+	cid.UniqueProcess = reinterpret_cast<HANDLE>( static_cast<size_t>( dwProcessId ) );
+
+	NTSTATUS ntStatus = NtOpenProcess( &hProcess, dwDesiredAccess, &ObjectAttributes, &cid );
+
+	if ( NT_SUCCESS( ntStatus ) )
+	{
+		return hProcess;
+	}
+	else
+	{
+		LOGS_DEBUG( "NtOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, RtlNtStatusToDosError( ntStatus ) );
+	}
+
 	return ::OpenProcess( dwDesiredAccess, bInheritHandle, dwProcessId );
+}
+
+
+void ApiTools::CloseHandle( HANDLE hObject ) {
+	::CloseHandle( hObject );
 }
