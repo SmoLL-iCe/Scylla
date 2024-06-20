@@ -6,6 +6,8 @@ ipch/
 *.sdf
 *.aps
 *.suo
+.vs
+*.ini
 Scylla.vcxproj.user
 
 #tinyxml ignore + exceptions

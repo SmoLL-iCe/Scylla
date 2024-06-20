@@ -1,0 +1,278 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="diStorm">
+      <UniqueIdentifier>{2ca59c84-877a-4ef4-b542-264c417d7fd6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="diStorm\src">
+      <UniqueIdentifier>{e54e0b80-13bf-4487-b98f-21fb0919d805}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src">
+      <UniqueIdentifier>{2c6fadef-a7e5-4512-9644-cb06cea63255}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MainSrc">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Interface">
+      <UniqueIdentifier>{15c32969-6cce-4391-b3c4-50da73043155}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface\Thirdparty">
+      <UniqueIdentifier>{0dd42b0d-8b7a-40f0-9f41-6d041bb95eaf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface\Thirdparty\GLFW">
+      <UniqueIdentifier>{35e064a3-0f78-41a4-b77b-d590705cc040}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface\Thirdparty\ImGui">
+      <UniqueIdentifier>{9298fcde-2dbf-4955-9f01-7adaff54e07b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface\Thirdparty\GLFW\Libs">
+      <UniqueIdentifier>{4d7d2c3f-ac56-4878-9025-0ee3a1aac086}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ProjectScylla.cpp">
+      <Filter>MainSrc</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\decoder.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\distorm.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\instructions.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\insts.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\mnemonics.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\operands.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\prefix.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\textdefs.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="diStorm\src\wstring.c">
+      <Filter>diStorm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcessAccessHelp.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="NativeWinApi.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="PeParser.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceNameResolver.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="StringConversion.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="SystemInformation.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiReader.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="IATSearch.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="Logger.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="IATReferenceScan.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcessLister.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="ImportRebuilder.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="FunctionExport.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="ScyllaContext.cpp">
+      <Filter>MainSrc</Filter>
+    </ClCompile>
+    <ClCompile Include="ImportsHandling.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\CreateWindow.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\FrmMain.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui_draw.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui_impl_glfw.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui_impl_opengl3.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui_tables.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Thirdparty\ImGui\imgui_widgets.cpp">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="diStorm\include\distorm.h">
+      <Filter>diStorm</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\include\mnemonics.h">
+      <Filter>diStorm</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\config.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\decoder.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\instructions.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\insts.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\operands.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\prefix.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\textdefs.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\wstring.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="diStorm\src\x86defs.h">
+      <Filter>diStorm\src</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessAccessHelp.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="NativeWinApi.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="PeParser.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="DeviceNameResolver.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="Architecture.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="Thunks.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="StringConversion.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="SystemInformation.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiReader.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="ScyllaConfig.hpp">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="IATSearch.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="Logger.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="IATReferenceScan.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessLister.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="ImportRebuilder.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="FunctionExport.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="ScyllaContext.h">
+      <Filter>MainSrc</Filter>
+    </ClInclude>
+    <ClInclude Include="ImportsHandling.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\CreateWindow.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\FrmMain.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imgui.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imgui_impl_glfw.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imgui_impl_opengl3.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imgui_internal.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imstb_rectpack.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imstb_textedit.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\imstb_truetype.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\GLFW\glfw3.h">
+      <Filter>Interface\Thirdparty\GLFW</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\GLFW\glfw3native.h">
+      <Filter>Interface\Thirdparty\GLFW</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="Interface\Thirdparty\GLFW\libs\glfw3_d32_mt.lib">
+      <Filter>Interface\Thirdparty\GLFW\Libs</Filter>
+    </Library>
+    <Library Include="Interface\Thirdparty\GLFW\libs\glfw3_d64_mt.lib">
+      <Filter>Interface\Thirdparty\GLFW\Libs</Filter>
+    </Library>
+    <Library Include="Interface\Thirdparty\GLFW\libs\glfw3_r32_mt.lib">
+      <Filter>Interface\Thirdparty\GLFW\Libs</Filter>
+    </Library>
+    <Library Include="Interface\Thirdparty\GLFW\libs\glfw3_r64_mt.lib">
+      <Filter>Interface\Thirdparty\GLFW\Libs</Filter>
+    </Library>
+  </ItemGroup>
+</Project>
