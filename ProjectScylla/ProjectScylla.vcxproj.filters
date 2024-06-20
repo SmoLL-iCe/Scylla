@@ -5,10 +5,6 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
     <Filter Include="diStorm">
       <UniqueIdentifier>{2ca59c84-877a-4ef4-b542-264c417d7fd6}</UniqueIdentifier>
     </Filter>
@@ -36,6 +32,12 @@
     </Filter>
     <Filter Include="Interface\Thirdparty\GLFW\Libs">
       <UniqueIdentifier>{4d7d2c3f-ac56-4878-9025-0ee3a1aac086}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="WinApi">
+      <UniqueIdentifier>{aaf24983-30dd-47d4-82db-3f81f2d91d0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tools">
+      <UniqueIdentifier>{fd08295d-b5d0-4faa-be24-eed1654ab718}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -70,9 +72,6 @@
       <Filter>diStorm\src</Filter>
     </ClCompile>
     <ClCompile Include="ProcessAccessHelp.cpp">
-      <Filter>Src</Filter>
-    </ClCompile>
-    <ClCompile Include="NativeWinApi.cpp">
       <Filter>Src</Filter>
     </ClCompile>
     <ClCompile Include="PeParser.cpp">
@@ -138,6 +137,12 @@
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui_widgets.cpp">
       <Filter>Interface\Thirdparty\ImGui</Filter>
     </ClCompile>
+    <ClCompile Include="WinApi\ApiTools.cpp">
+      <Filter>WinApi</Filter>
+    </ClCompile>
+    <ClCompile Include="Tools\Logs.cpp">
+      <Filter>Tools</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="diStorm\include\distorm.h">
@@ -174,9 +179,6 @@
       <Filter>diStorm\src</Filter>
     </ClInclude>
     <ClInclude Include="ProcessAccessHelp.h">
-      <Filter>Src</Filter>
-    </ClInclude>
-    <ClInclude Include="NativeWinApi.h">
       <Filter>Src</Filter>
     </ClInclude>
     <ClInclude Include="PeParser.h">
@@ -259,6 +261,15 @@
     </ClInclude>
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3native.h">
       <Filter>Interface\Thirdparty\GLFW</Filter>
+    </ClInclude>
+    <ClInclude Include="WinApi\ApiTools.h">
+      <Filter>WinApi</Filter>
+    </ClInclude>
+    <ClInclude Include="WinApi\ntos.h">
+      <Filter>WinApi</Filter>
+    </ClInclude>
+    <ClInclude Include="Tools\Logs.h">
+      <Filter>Tools</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -17,18 +17,20 @@ PeParser::PeParser( const WCHAR* file, bool readSectionHeaders )
 
 	filename = file;
 
-	if ( filename )
-	{
-		readPeHeaderFromFile( readSectionHeaders );
+	if ( !filename )
+		return;
 
-		if ( readSectionHeaders )
-		{
-			if ( isValidPeFile( ) )
-			{
-				getSectionHeaders( );
-			}
-		}
+	readPeHeaderFromFile( readSectionHeaders );
+
+	if ( !readSectionHeaders )
+		return;
+
+	if ( !isValidPeFile( ) )
+	{
+		return;
 	}
+	
+	getSectionHeaders( );
 }
 
 PeParser::PeParser( const DWORD_PTR moduleBase, bool readSectionHeaders )
@@ -37,19 +39,24 @@ PeParser::PeParser( const DWORD_PTR moduleBase, bool readSectionHeaders )
 
 	moduleBaseAddress = moduleBase;
 
-	if ( moduleBaseAddress )
+	if ( !moduleBaseAddress )
 	{
-		readPeHeaderFromProcess( readSectionHeaders );
-
-		if ( readSectionHeaders )
-		{
-			if ( isValidPeFile( ) )
-			{
-				getSectionHeaders( );
-			}
-		}
+		return;
 	}
 
+	readPeHeaderFromProcess( readSectionHeaders );
+
+	if ( !readSectionHeaders )
+	{
+		return;
+	}
+
+	if ( !isValidPeFile( ) )
+	{
+		return;
+	}
+
+	getSectionHeaders( );
 }
 
 PeParser::~PeParser( )
@@ -76,48 +83,36 @@ PeParser::~PeParser( )
 
 void PeParser::initClass( )
 {
-	fileMemory = 0;
-	headerMemory = 0;
+	fileMemory = nullptr;
+	headerMemory = nullptr;
 
-	pDosHeader = 0;
-	pDosStub = 0;
+	pDosHeader = nullptr;
+	pDosStub = nullptr;
 	dosStubSize = 0;
-	pNTHeader32 = 0;
-	pNTHeader64 = 0;
-	overlayData = 0;
+	pNTHeader32 = nullptr;
+	pNTHeader64 = nullptr;
+	overlayData = nullptr;
 	overlaySize = 0;
 
-	filename = 0;
+	filename = nullptr;
 	fileSize = 0;
 	moduleBaseAddress = 0;
 	hFile = INVALID_HANDLE_VALUE;
 }
 
-bool PeParser::isPE64( )
+bool PeParser::isPE64( ) const
 {
-	if ( isValidPeFile( ) )
-	{
-		return ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC );
-	}
-	else
-	{
-		return false;
-	}
+	return  ( isValidPeFile( ) ) ?
+		( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC ) : false;
 }
 
-bool PeParser::isPE32( )
+bool PeParser::isPE32( ) const
 {
-	if ( isValidPeFile( ) )
-	{
-		return ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC );
-	}
-	else
-	{
-		return false;
-	}
+	return  ( isValidPeFile( ) ) ?
+		( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC ) : false;
 }
 
-bool PeParser::isTargetFileSamePeFormat( )
+bool PeParser::isTargetFileSamePeFormat( ) const
 {
 #ifdef _WIN64
 	return isPE64( );
@@ -126,41 +121,24 @@ bool PeParser::isTargetFileSamePeFormat( )
 #endif
 }
 
-bool PeParser::isValidPeFile( )
+bool PeParser::isValidPeFile( ) const
 {
-	bool retValue = false;
+	if ( !pDosHeader )
+		return false;
+	
+	if ( pDosHeader->e_magic != IMAGE_DOS_SIGNATURE )
+		return false;
 
-	if ( pDosHeader )
-	{
-		if ( pDosHeader->e_magic == IMAGE_DOS_SIGNATURE )
-		{
-			if ( pNTHeader32 )
-			{
-				if ( pNTHeader32->Signature == IMAGE_NT_SIGNATURE )
-				{
-					retValue = true;
-				}
-			}
-		}
-	}
+	if ( !pNTHeader32 )
+		return false;
 
-	return retValue;
+	return ( pNTHeader32->Signature == IMAGE_NT_SIGNATURE );
 }
 
 bool PeParser::hasDirectory( const int directoryIndex )
 {
-	if ( isPE32( ) )
-	{
-		return ( pNTHeader32->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 );
-	}
-	else if ( isPE64( ) )
-	{
-		return ( pNTHeader64->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 );
-	}
-	else
-	{
-		return false;
-	}
+	return isPE32( ) ? ( pNTHeader32->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 ) :
+		isPE64( ) ? ( pNTHeader64->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 ) : false;
 }
 
 bool PeParser::hasExportDirectory( )
@@ -180,59 +158,47 @@ bool PeParser::hasRelocationDirectory( )
 
 DWORD PeParser::getEntryPoint( )
 {
-	if ( isPE32( ) )
-	{
-		return pNTHeader32->OptionalHeader.AddressOfEntryPoint;
-	}
-	else if ( isPE64( ) )
-	{
-		return pNTHeader64->OptionalHeader.AddressOfEntryPoint;
-	}
-	else
-	{
-		return 0;
-	}
+	return isPE32( ) ? pNTHeader32->OptionalHeader.AddressOfEntryPoint :
+		isPE64( ) ? pNTHeader64->OptionalHeader.AddressOfEntryPoint : 0;
 }
 
 bool PeParser::readPeHeaderFromProcess( bool readSectionHeaders )
 {
-	bool retValue = false;
 	DWORD correctSize = 0;
 
 	DWORD readSize = getInitialHeaderReadSize( readSectionHeaders );
 
 	headerMemory = new BYTE[ readSize ];
 
-	if ( ProcessAccessHelp::readMemoryPartlyFromProcess( moduleBaseAddress, readSize, headerMemory ) )
+	if ( !ProcessAccessHelp::readMemoryPartlyFromProcess( moduleBaseAddress, readSize, headerMemory ) )
+		return false;
+	
+	getDosAndNtHeader( headerMemory, (LONG)readSize );
+
+	if ( !isValidPeFile( ) )
+		return false;
+	
+	correctSize = calcCorrectPeHeaderSize( readSectionHeaders );
+
+	if ( readSize < correctSize )
 	{
-		retValue = true;
+		readSize = correctSize;
 
-		getDosAndNtHeader( headerMemory, (LONG)readSize );
+		delete[ ] headerMemory;
 
-		if ( isValidPeFile( ) )
+		headerMemory = new BYTE[ readSize ];
+
+		if ( ProcessAccessHelp::readMemoryPartlyFromProcess( moduleBaseAddress, readSize, headerMemory ) )
 		{
-			correctSize = calcCorrectPeHeaderSize( readSectionHeaders );
-
-			if ( readSize < correctSize )
-			{
-				readSize = correctSize;
-				delete[ ] headerMemory;
-				headerMemory = new BYTE[ readSize ];
-
-				if ( ProcessAccessHelp::readMemoryPartlyFromProcess( moduleBaseAddress, readSize, headerMemory ) )
-				{
-					getDosAndNtHeader( headerMemory, (LONG)readSize );
-				}
-			}
+			getDosAndNtHeader( headerMemory, (LONG)readSize );
 		}
 	}
-
-	return retValue;
+	
+	return true;
 }
 
 bool PeParser::readPeHeaderFromFile( bool readSectionHeaders )
 {
-	bool retValue = false;
 	DWORD correctSize = 0;
 	DWORD numberOfBytesRead = 0;
 
@@ -240,62 +206,66 @@ bool PeParser::readPeHeaderFromFile( bool readSectionHeaders )
 
 	headerMemory = new BYTE[ readSize ];
 
-	if ( openFileHandle( ) )
+	if ( !openFileHandle( ) )
+		return false;
+
+	fileSize = ProcessAccessHelp::getFileSize( hFile );
+
+	if ( !ReadFile( hFile, headerMemory, readSize, &numberOfBytesRead, 0 ) )
 	{
-		fileSize = (DWORD)ProcessAccessHelp::getFileSize( hFile );
+		closeFileHandle( );
+		return false;
+	}
 
-		if ( ReadFile( hFile, headerMemory, readSize, &numberOfBytesRead, 0 ) )
+	getDosAndNtHeader( headerMemory, (LONG)readSize );
+
+	if ( !isValidPeFile( ) )
+	{
+		closeFileHandle( );
+		return false;
+	}
+
+	correctSize = calcCorrectPeHeaderSize( readSectionHeaders );
+
+	if ( readSize < correctSize )
+	{
+		readSize = correctSize;
+
+		if ( fileSize > 0 )
 		{
-			retValue = true;
-
-			getDosAndNtHeader( headerMemory, (LONG)readSize );
-
-			if ( isValidPeFile( ) )
+			if ( fileSize < correctSize )
 			{
-				correctSize = calcCorrectPeHeaderSize( readSectionHeaders );
-
-				if ( readSize < correctSize )
-				{
-					readSize = correctSize;
-
-					if ( fileSize > 0 )
-					{
-						if ( fileSize < correctSize )
-						{
-							readSize = fileSize;
-						}
-					}
-
-
-					delete[ ] headerMemory;
-					headerMemory = new BYTE[ readSize ];
-
-					SetFilePointer( hFile, 0, 0, FILE_BEGIN );
-
-					if ( ReadFile( hFile, headerMemory, readSize, &numberOfBytesRead, 0 ) )
-					{
-						getDosAndNtHeader( headerMemory, (LONG)readSize );
-					}
-				}
+				readSize = fileSize;
 			}
 		}
 
-		closeFileHandle( );
-	}
 
-	return retValue;
+		delete[ ] headerMemory;
+
+		headerMemory = new BYTE[ readSize ];
+
+		SetFilePointer( hFile, 0, 0, FILE_BEGIN );
+
+		if ( ReadFile( hFile, headerMemory, readSize, &numberOfBytesRead, 0 ) )
+		{
+			getDosAndNtHeader( headerMemory, (LONG)readSize );
+		}
+	}
+	
+	closeFileHandle( );
+	
+	return true;
 }
 
 bool PeParser::readPeSectionsFromProcess( )
 {
 	bool retValue = true;
-	DWORD_PTR readOffset = 0;
 
 	listPeSection.reserve( getNumberOfSections( ) );
 
 	for ( WORD i = 0; i < getNumberOfSections( ); i++ )
 	{
-		readOffset = listPeSection[ i ].sectionHeader.VirtualAddress + moduleBaseAddress;
+		DWORD_PTR readOffset = listPeSection[ i ].sectionHeader.VirtualAddress + moduleBaseAddress;
 
 		listPeSection[ i ].normalSize = listPeSection[ i ].sectionHeader.Misc.VirtualSize;
 
@@ -311,33 +281,26 @@ bool PeParser::readPeSectionsFromProcess( )
 bool PeParser::readPeSectionsFromFile( )
 {
 	bool retValue = true;
-	DWORD readOffset = 0;
 
 	listPeSection.reserve( getNumberOfSections( ) );
 
+	if ( !openFileHandle( ) )
+		return false;
 
-	if ( openFileHandle( ) )
+	for ( WORD i = 0; i < getNumberOfSections( ); i++ )
 	{
-		for ( WORD i = 0; i < getNumberOfSections( ); i++ )
+		DWORD readOffset = listPeSection[ i ].sectionHeader.PointerToRawData;
+
+		listPeSection[ i ].normalSize = listPeSection[ i ].sectionHeader.SizeOfRawData;
+
+		if ( !readSectionFromFile( readOffset, listPeSection[ i ] ) )
 		{
-			readOffset = listPeSection[ i ].sectionHeader.PointerToRawData;
-
-			listPeSection[ i ].normalSize = listPeSection[ i ].sectionHeader.SizeOfRawData;
-
-			if ( !readSectionFromFile( readOffset, listPeSection[ i ] ) )
-			{
-				retValue = false;
-			}
-
+			retValue = false;
 		}
-
-		closeFileHandle( );
-	}
-	else
-	{
-		retValue = false;
 	}
 
+	closeFileHandle( );
+	
 	return retValue;
 }
 
@@ -348,6 +311,7 @@ bool PeParser::getSectionHeaders( )
 	PeFileSection peFileSection;
 
 	listPeSection.clear( );
+
 	listPeSection.reserve( getNumberOfSections( ) );
 
 	for ( WORD i = 0; i < getNumberOfSections( ); i++ )
@@ -355,6 +319,7 @@ bool PeParser::getSectionHeaders( )
 		memcpy_s( &peFileSection.sectionHeader, sizeof( IMAGE_SECTION_HEADER ), pSection, sizeof( IMAGE_SECTION_HEADER ) );
 
 		listPeSection.push_back( peFileSection );
+
 		pSection++;
 	}
 
@@ -372,7 +337,7 @@ bool PeParser::getSectionNameUnicode( const int sectionIndex, WCHAR* output, con
 	return ( swprintf_s( output, outputLen, L"%S", sectionNameA ) != -1 );
 }
 
-WORD PeParser::getNumberOfSections( )
+WORD PeParser::getNumberOfSections( ) const
 {
 	return pNTHeader32->FileHeader.NumberOfSections;
 }
@@ -489,14 +454,7 @@ bool PeParser::openFileHandle( )
 {
 	if ( hFile == INVALID_HANDLE_VALUE )
 	{
-		if ( filename )
-		{
-			hFile = CreateFile( filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
-		}
-		else
-		{
-			hFile = INVALID_HANDLE_VALUE;
-		}
+		hFile = ( filename ) ? CreateFile( filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 ) : INVALID_HANDLE_VALUE;
 	}
 
 	return ( hFile != INVALID_HANDLE_VALUE );
@@ -504,24 +462,17 @@ bool PeParser::openFileHandle( )
 
 bool PeParser::openWriteFileHandle( const WCHAR* newFile )
 {
-	if ( newFile )
-	{
-		hFile = CreateFile( newFile, GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0 );
-	}
-	else
-	{
-		hFile = INVALID_HANDLE_VALUE;
-	}
+	hFile = (newFile) ? CreateFile( newFile, GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0 ) : INVALID_HANDLE_VALUE;
 
 	return ( hFile != INVALID_HANDLE_VALUE );
 }
-
 
 void PeParser::closeFileHandle( )
 {
 	if ( hFile != INVALID_HANDLE_VALUE )
 	{
 		CloseHandle( hFile );
+
 		hFile = INVALID_HANDLE_VALUE;
 	}
 }
@@ -538,87 +489,44 @@ bool PeParser::readSectionFromFile( const DWORD readOffset, PeFileSection& peFil
 
 bool PeParser::readSectionFrom( const DWORD_PTR readOffset, PeFileSection& peFileSection, const bool isProcess )
 {
-	const DWORD maxReadSize = 100;
-	DWORD currentReadSize;
+	const DWORD maxReadSize = 0x100;
 	BYTE data[ maxReadSize ];
 	bool retValue = true;
-	DWORD valuesFound = 0;
-	DWORD readSize = 0;
-	DWORD_PTR currentOffset = 0;
 
-	peFileSection.data = 0;
-	peFileSection.dataSize = 0;
-	readSize = peFileSection.normalSize;
-
-	if ( !readOffset || !readSize )
+	if ( !readOffset || !( peFileSection.dataSize = peFileSection.normalSize ) )
 	{
-		return true; //section without data is valid
+		return true; // Section without data is valid
 	}
 
-	if ( readSize <= maxReadSize )
+	if ( peFileSection.dataSize <= maxReadSize )
 	{
-		peFileSection.dataSize = readSize;
-		peFileSection.normalSize = readSize;
-
-		if ( isProcess )
-		{
-			return readPeSectionFromProcess( readOffset, peFileSection );
-		}
-		else
-		{
-			return readPeSectionFromFile( (DWORD)readOffset, peFileSection );
-		}
+		return isProcess ? readPeSectionFromProcess( readOffset, peFileSection ) :
+			readPeSectionFromFile( static_cast<DWORD>( readOffset ), peFileSection );
 	}
 
-	currentReadSize = readSize % maxReadSize; //alignment %
+	DWORD currentReadSize = peFileSection.dataSize % maxReadSize ? peFileSection.dataSize % maxReadSize : maxReadSize;
+	DWORD_PTR currentOffset = readOffset + peFileSection.dataSize - currentReadSize;
 
-	if ( !currentReadSize )
-	{
-		currentReadSize = maxReadSize;
-	}
-	currentOffset = readOffset + readSize - currentReadSize;
-
-
-	while ( currentOffset >= readOffset ) //start from the end
+	while ( currentOffset >= readOffset ) // Start from the end
 	{
 		ZeroMemory( data, currentReadSize );
-
-		if ( isProcess )
-		{
-			retValue = ProcessAccessHelp::readMemoryPartlyFromProcess( currentOffset, currentReadSize, data );
-		}
-		else
-		{
-			retValue = ProcessAccessHelp::readMemoryFromFile( hFile, (LONG)currentOffset, currentReadSize, data );
-		}
+		retValue = isProcess ? ProcessAccessHelp::readMemoryPartlyFromProcess( currentOffset, currentReadSize, data ) :
+			ProcessAccessHelp::readMemoryFromFile( hFile, static_cast<LONG>( currentOffset ), currentReadSize, data );
 
 		if ( !retValue )
 		{
 			break;
 		}
 
-		valuesFound = isMemoryNotNull( data, currentReadSize );
+		DWORD valuesFound = isMemoryNotNull( data, currentReadSize );
 		if ( valuesFound )
 		{
-			//found some real code
-
 			currentOffset += valuesFound;
-
 			if ( readOffset < currentOffset )
 			{
-				//real size
-				peFileSection.dataSize = (DWORD)( currentOffset - readOffset );
-
-				//some safety space because of something like this at the end of a section:
-				//FF25 C0604000 JMP DWORD PTR DS:[<&KERNEL32.RtlUnwind>]
-				peFileSection.dataSize += sizeof( DWORD );
-
-				if ( peFileSection.normalSize < peFileSection.dataSize )
-				{
-					peFileSection.dataSize = peFileSection.normalSize;
-				}
+				peFileSection.dataSize = static_cast<DWORD>( currentOffset - readOffset ) + sizeof( DWORD );
+				peFileSection.dataSize = min( peFileSection.dataSize, peFileSection.normalSize );
 			}
-
 			break;
 		}
 
@@ -626,17 +534,10 @@ bool PeParser::readSectionFrom( const DWORD_PTR readOffset, PeFileSection& peFil
 		currentOffset -= currentReadSize;
 	}
 
-
 	if ( peFileSection.dataSize )
 	{
-		if ( isProcess )
-		{
-			retValue = readPeSectionFromProcess( readOffset, peFileSection );
-		}
-		else
-		{
-			retValue = readPeSectionFromFile( (DWORD)readOffset, peFileSection );
-		}
+		retValue = isProcess ? readPeSectionFromProcess( readOffset, peFileSection ) :
+			readPeSectionFromFile( static_cast<DWORD>( readOffset ), peFileSection );
 	}
 
 	return retValue;
@@ -1151,7 +1052,8 @@ void PeParser::setEntryPointRva( DWORD entryPoint )
 
 bool PeParser::getFileOverlay( )
 {
-	DWORD numberOfBytesRead;
+	DWORD numberOfBytesRead = 0;
+
 	bool retValue = false;
 
 	if ( !hasOverlayData( ) )
@@ -1162,7 +1064,9 @@ bool PeParser::getFileOverlay( )
 	if ( openFileHandle( ) )
 	{
 		DWORD overlayOffset = getSectionHeaderBasedFileSize( );
-		DWORD fileSize = (DWORD)ProcessAccessHelp::getFileSize( hFile );
+
+		DWORD fileSize = ProcessAccessHelp::getFileSize( hFile );
+
 		overlaySize = fileSize - overlayOffset;
 
 		overlayData = new BYTE[ overlaySize ];
@@ -1213,12 +1117,12 @@ bool PeParser::updatePeHeaderChecksum( const WCHAR* targetFile, DWORD fileSize )
 
 	HANDLE hFileToMap = CreateFile( targetFile, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0 );
 
-	if ( hFileToMap == INVALID_HANDLE_VALUE )
+	if ( !hFileToMap || hFileToMap == INVALID_HANDLE_VALUE )
 		return false;
 	
 	HANDLE hMappedFile = CreateFileMapping( hFileToMap, 0, PAGE_READWRITE, 0, 0, 0 );
 
-	if ( hMappedFile == INVALID_HANDLE_VALUE )
+	if ( !hMappedFile || hMappedFile == INVALID_HANDLE_VALUE )
 	{
 		clearHandles( hFileToMap, hMappedFile );
 		return false;

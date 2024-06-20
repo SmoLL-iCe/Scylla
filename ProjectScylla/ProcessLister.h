@@ -4,9 +4,8 @@
 #include <tlhelp32.h>
 #include <vector>
 #include <psapi.h>
-
-#include "NativeWinApi.h"
 #include "DeviceNameResolver.h"
+#include "WinApi/ntos.h"
 
 typedef BOOL (WINAPI *def_IsWow64Process)(HANDLE hProcess,PBOOL Wow64Process);
 
@@ -63,7 +62,7 @@ private:
 	bool getAbsoluteFilePath(HANDLE hProcess, Process * process);
 
 
-    void handleProcessInformationAndAddToList( PSYSTEM_PROCESS_INFORMATION pProcess );
+    void handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess );
     void getProcessImageInformation( HANDLE hProcess, Process* process );
     DWORD_PTR getPebAddressFromProcess( HANDLE hProcess );
 };

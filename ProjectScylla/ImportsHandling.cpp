@@ -1,26 +1,27 @@
 #include "ImportsHandling.h"
 #include "Thunks.h"
 #include "Architecture.h"
+#include "Tools/Logs.h"
 
 
 //#define DEBUG_COMMENTS
 
-void ImportThunk::invalidate()
+void ImportThunk::invalidate( )
 {
 	ordinal = 0;
 	hint = 0;
 	valid = false;
 	suspect = false;
-	moduleName[0] = 0;
-	name[0] = 0;
+	moduleName[ 0 ] = 0;
+	name[ 0 ] = 0;
 }
 
-bool ImportModuleThunk::isValid() const
+bool ImportModuleThunk::isValid( ) const
 {
-	std::map<DWORD_PTR, ImportThunk>::const_iterator iterator = thunkList.begin();
-	while (iterator != thunkList.end())
+	std::map<DWORD_PTR, ImportThunk>::const_iterator iterator = thunkList.begin( );
+	while ( iterator != thunkList.end( ) )
 	{
-		if (iterator->second.valid == false)
+		if ( iterator->second.valid == false )
 		{
 			return false;
 		}
@@ -30,11 +31,11 @@ bool ImportModuleThunk::isValid() const
 	return true;
 }
 
-DWORD_PTR ImportModuleThunk::getFirstThunk() const
+DWORD_PTR ImportModuleThunk::getFirstThunk( ) const
 {
-	if (thunkList.size() > 0)
+	if ( thunkList.size( ) > 0 )
 	{
-		const std::map<DWORD_PTR, ImportThunk>::const_iterator iterator = thunkList.begin();
+		const std::map<DWORD_PTR, ImportThunk>::const_iterator iterator = thunkList.begin( );
 		return iterator->first;
 	}
 	else
@@ -43,32 +44,32 @@ DWORD_PTR ImportModuleThunk::getFirstThunk() const
 	}
 }
 
-ImportsHandling::~ImportsHandling()
+ImportsHandling::~ImportsHandling( )
 {
 }
 
-void ImportsHandling::updateCounts()
+void ImportsHandling::updateCounts( )
 {
 	std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 	std::map<DWORD_PTR, ImportThunk>::iterator it_import;
 
 	m_thunkCount = m_invalidThunkCount = m_suspectThunkCount = 0;
 
-	it_module = moduleList.begin();
+	it_module = moduleList.begin( );
 
-	while (it_module != moduleList.end())
+	while ( it_module != moduleList.end( ) )
 	{
-		ImportModuleThunk &moduleThunk = it_module->second;
+		ImportModuleThunk& moduleThunk = it_module->second;
 
-		it_import = moduleThunk.thunkList.begin();
-		while (it_import != moduleThunk.thunkList.end())
+		it_import = moduleThunk.thunkList.begin( );
+		while ( it_import != moduleThunk.thunkList.end( ) )
 		{
-			ImportThunk &importThunk = it_import->second;
+			ImportThunk& importThunk = it_import->second;
 
 			m_thunkCount++;
-			if(!importThunk.valid)
+			if ( !importThunk.valid )
 				m_invalidThunkCount++;
-			else if(importThunk.suspect)
+			else if ( importThunk.suspect )
 				m_suspectThunkCount++;
 
 			it_import++;
@@ -115,7 +116,7 @@ void ImportsHandling::updateCounts()
 
 	if (!module)
 	{
-		Scylla::debugLog.log(L"ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, rva);
+		LOGS_DEBUG( "ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, rva);
 		return false;
 	}
 
@@ -149,7 +150,7 @@ bool ImportsHandling::addModule(const WCHAR * moduleName, DWORD_PTR firstThunk)
 }
 */
 
-void ImportsHandling::displayAllImports()
+void ImportsHandling::displayAllImports( )
 {
 	//std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 	//std::map<DWORD_PTR, ImportThunk>::iterator it_import;
@@ -179,17 +180,17 @@ void ImportsHandling::displayAllImports()
 	//updateCounts();
 }
 
-void ImportsHandling::clearAllImports()
+void ImportsHandling::clearAllImports( )
 {
-	moduleList.clear();
-	updateCounts();
+	moduleList.clear( );
+	updateCounts( );
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropiateIcon(const ImportThunk * importThunk)
+ImportsHandling::Icon ImportsHandling::getAppropiateIcon( const ImportThunk* importThunk )
 {
-	if(importThunk->valid)
+	if ( importThunk->valid )
 	{
-		if(importThunk->suspect)
+		if ( importThunk->suspect )
 		{
 			return iconWarning;
 		}
@@ -204,9 +205,9 @@ ImportsHandling::Icon ImportsHandling::getAppropiateIcon(const ImportThunk * imp
 	}
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropiateIcon(bool valid)
+ImportsHandling::Icon ImportsHandling::getAppropiateIcon( bool valid )
 {
-	if(valid)
+	if ( valid )
 	{
 		return iconCheck;
 	}
@@ -216,74 +217,74 @@ ImportsHandling::Icon ImportsHandling::getAppropiateIcon(bool valid)
 	}
 }
 
-void ImportsHandling::scanAndFixModuleList()
+void ImportsHandling::scanAndFixModuleList( )
 {
-	WCHAR prevModuleName[MAX_PATH] = {0};
+	WCHAR prevModuleName[ MAX_PATH ] = { 0 };
 	std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 	std::map<DWORD_PTR, ImportThunk>::iterator it_import;
 
-	it_module = moduleList.begin();
-	while (it_module != moduleList.end())
+	it_module = moduleList.begin( );
+	while ( it_module != moduleList.end( ) )
 	{
-		ImportModuleThunk &moduleThunk = it_module->second;
+		ImportModuleThunk& moduleThunk = it_module->second;
 
-		it_import = moduleThunk.thunkList.begin();
+		it_import = moduleThunk.thunkList.begin( );
 
-		ImportThunk * importThunkPrev;
+		ImportThunk* importThunkPrev;
 		importThunkPrev = &it_import->second;
 
-		while (it_import != moduleThunk.thunkList.end())
+		while ( it_import != moduleThunk.thunkList.end( ) )
 		{
-			ImportThunk &importThunk = it_import->second;
+			ImportThunk& importThunk = it_import->second;
 
-			if (importThunk.moduleName[0] == 0 || importThunk.moduleName[0] == L'?')
+			if ( importThunk.moduleName[ 0 ] == 0 || importThunk.moduleName[ 0 ] == L'?' )
 			{
-				addNotFoundApiToModuleList(&importThunk);
+				addNotFoundApiToModuleList( &importThunk );
 			}
-			else 
+			else
 			{
-				
-				if (_wcsicmp(importThunk.moduleName, prevModuleName))
+
+				if ( _wcsicmp( importThunk.moduleName, prevModuleName ) )
 				{
-					addModuleToModuleList(importThunk.moduleName, importThunk.rva);
+					addModuleToModuleList( importThunk.moduleName, importThunk.rva );
 				}
-				
-				addFunctionToModuleList(&importThunk);
+
+				addFunctionToModuleList( &importThunk );
 			}
 
-			wcscpy_s(prevModuleName, importThunk.moduleName);
+			wcscpy_s( prevModuleName, importThunk.moduleName );
 			it_import++;
 		}
 
-		moduleThunk.thunkList.clear();
+		moduleThunk.thunkList.clear( );
 
 		it_module++;
 	}
 
 	moduleList = moduleListNew;
-	moduleListNew.clear();
+	moduleListNew.clear( );
 }
 
-bool ImportsHandling::addModuleToModuleList(const WCHAR * moduleName, DWORD_PTR firstThunk)
+bool ImportsHandling::addModuleToModuleList( const WCHAR* moduleName, DWORD_PTR firstThunk )
 {
 	ImportModuleThunk module;
 
 	module.firstThunk = firstThunk;
-	wcscpy_s(module.moduleName, moduleName);
+	wcscpy_s( module.moduleName, moduleName );
 
 	module.key = module.firstThunk;
-	moduleListNew[module.key] = module;
+	moduleListNew[ module.key ] = module;
 	return true;
 }
 
-bool ImportsHandling::isNewModule(const WCHAR * moduleName)
+bool ImportsHandling::isNewModule( const WCHAR* moduleName )
 {
 	std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 
-	it_module = moduleListNew.begin();
-	while (it_module != moduleListNew.end())
+	it_module = moduleListNew.begin( );
+	while ( it_module != moduleListNew.end( ) )
 	{
-		if (!_wcsicmp(it_module->second.moduleName, moduleName))
+		if ( !_wcsicmp( it_module->second.moduleName, moduleName ) )
 		{
 			return false;
 		}
@@ -294,60 +295,60 @@ bool ImportsHandling::isNewModule(const WCHAR * moduleName)
 	return true;
 }
 
-void ImportsHandling::addUnknownModuleToModuleList(DWORD_PTR firstThunk)
+void ImportsHandling::addUnknownModuleToModuleList( DWORD_PTR firstThunk )
 {
 	ImportModuleThunk module;
 
 	module.firstThunk = firstThunk;
-	wcscpy_s(module.moduleName, L"?");
+	wcscpy_s( module.moduleName, L"?" );
 
 	module.key = module.firstThunk;
-	moduleListNew[module.key] = module;
+	moduleListNew[ module.key ] = module;
 }
 
-bool ImportsHandling::addNotFoundApiToModuleList(const ImportThunk * apiNotFound)
+bool ImportsHandling::addNotFoundApiToModuleList( const ImportThunk* apiNotFound )
 {
 	ImportThunk import;
-	ImportModuleThunk  * module = 0;
+	ImportModuleThunk* module = 0;
 	std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 	DWORD_PTR rva = apiNotFound->rva;
 
-	if (moduleListNew.size() > 0)
+	if ( moduleListNew.size( ) > 0 )
 	{
-		it_module = moduleListNew.begin();
-		while (it_module != moduleListNew.end())
+		it_module = moduleListNew.begin( );
+		while ( it_module != moduleListNew.end( ) )
 		{
-			if (rva >= it_module->second.firstThunk)
+			if ( rva >= it_module->second.firstThunk )
 			{
 				it_module++;
-				if (it_module == moduleListNew.end())
+				if ( it_module == moduleListNew.end( ) )
 				{
 					it_module--;
 					//new unknown module
-					if (it_module->second.moduleName[0] == L'?')
+					if ( it_module->second.moduleName[ 0 ] == L'?' )
 					{
-						module = &(it_module->second);
+						module = &( it_module->second );
 					}
 					else
 					{
-						addUnknownModuleToModuleList(apiNotFound->rva);
-						module = &(moduleListNew.find(rva)->second);
+						addUnknownModuleToModuleList( apiNotFound->rva );
+						module = &( moduleListNew.find( rva )->second );
 					}
 
 					break;
 				}
-				else if (rva < it_module->second.firstThunk)
+				else if ( rva < it_module->second.firstThunk )
 				{
 					it_module--;
-					module = &(it_module->second);
+					module = &( it_module->second );
 					break;
 				}
 			}
 			else
 			{
-#ifdef DEBUG_COMMENTS
-				Scylla::debugLog.log(L"Error iterator1 != (*moduleThunkList).end()");
-#endif
+
+				LOGS_DEBUG( "Error iterator1 != (*moduleThunkList).end()" );
+
 				break;
 			}
 		}
@@ -355,15 +356,15 @@ bool ImportsHandling::addNotFoundApiToModuleList(const ImportThunk * apiNotFound
 	else
 	{
 		//new unknown module
-		addUnknownModuleToModuleList(apiNotFound->rva);
-		module = &(moduleListNew.find(rva)->second);
+		addUnknownModuleToModuleList( apiNotFound->rva );
+		module = &( moduleListNew.find( rva )->second );
 	}
 
-	if (!module)
+	if ( !module )
 	{
-#ifdef DEBUG_COMMENTS
-		Scylla::debugLog.log(L"ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, rva);
-#endif
+
+		LOGS_DEBUG( "ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL_S, rva );
+
 		return false;
 	}
 
@@ -375,61 +376,61 @@ bool ImportsHandling::addNotFoundApiToModuleList(const ImportThunk * apiNotFound
 	import.apiAddressVA = apiNotFound->apiAddressVA;
 	import.ordinal = 0;
 
-	wcscpy_s(import.moduleName, L"?");
-	strcpy_s(import.name, "?");
+	wcscpy_s( import.moduleName, L"?" );
+	strcpy_s( import.name, "?" );
 
 	import.key = import.rva;
-	module->thunkList[import.key] = import;
+	module->thunkList[ import.key ] = import;
 	return true;
 }
 
-bool ImportsHandling::addFunctionToModuleList(const ImportThunk * apiFound)
+bool ImportsHandling::addFunctionToModuleList( const ImportThunk* apiFound )
 {
 	ImportThunk import;
-	ImportModuleThunk  * module = 0;
+	ImportModuleThunk* module = 0;
 	std::map<DWORD_PTR, ImportModuleThunk>::iterator it_module;
 
-	if (moduleListNew.size() > 1)
+	if ( moduleListNew.size( ) > 1 )
 	{
-		it_module = moduleListNew.begin();
-		while (it_module != moduleListNew.end())
+		it_module = moduleListNew.begin( );
+		while ( it_module != moduleListNew.end( ) )
 		{
-			if (apiFound->rva >= it_module->second.firstThunk)
+			if ( apiFound->rva >= it_module->second.firstThunk )
 			{
 				it_module++;
-				if (it_module == moduleListNew.end())
+				if ( it_module == moduleListNew.end( ) )
 				{
 					it_module--;
-					module = &(it_module->second);
+					module = &( it_module->second );
 					break;
 				}
-				else if (apiFound->rva < it_module->second.firstThunk)
+				else if ( apiFound->rva < it_module->second.firstThunk )
 				{
 					it_module--;
-					module = &(it_module->second);
+					module = &( it_module->second );
 					break;
 				}
 			}
 			else
 			{
-#ifdef DEBUG_COMMENTS
-				Scylla::debugLog.log(L"Error iterator1 != moduleListNew.end()");
-#endif
+
+				LOGS_DEBUG( "Error iterator1 != moduleListNew.end()" );
+
 				break;
 			}
 		}
 	}
 	else
 	{
-		it_module = moduleListNew.begin();
-		module = &(it_module->second);
+		it_module = moduleListNew.begin( );
+		module = &( it_module->second );
 	}
 
-	if (!module)
+	if ( !module )
 	{
-#ifdef DEBUG_COMMENTS
-		Scylla::debugLog.log(L"ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, apiFound->rva);
-#endif
+
+		LOGS_DEBUG( "ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL_S, apiFound->rva );
+
 		return false;
 	}
 
@@ -442,10 +443,10 @@ bool ImportsHandling::addFunctionToModuleList(const ImportThunk * apiFound)
 	import.ordinal = apiFound->ordinal;
 	import.hint = apiFound->hint;
 
-	wcscpy_s(import.moduleName, apiFound->moduleName);
-	strcpy_s(import.name, apiFound->name);
+	wcscpy_s( import.moduleName, apiFound->moduleName );
+	strcpy_s( import.name, apiFound->name );
 
 	import.key = import.rva;
-	module->thunkList[import.key] = import;
+	module->thunkList[ import.key ] = import;
 	return true;
 }

@@ -42,13 +42,13 @@ public:
 
 	~PeParser();
 
-	bool isValidPeFile();
-	bool isPE64();
-	bool isPE32();
+	bool isValidPeFile() const;
+	bool isPE64() const;
+	bool isPE32() const;
 
-	bool isTargetFileSamePeFormat();
+	bool isTargetFileSamePeFormat() const;
 
-	WORD getNumberOfSections();
+	WORD getNumberOfSections() const;
 	std::vector<PeFileSection> & getSectionHeaderList();
 
 	bool hasExportDirectory();

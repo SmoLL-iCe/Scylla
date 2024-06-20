@@ -210,8 +210,8 @@ public:
 	 */
 	static bool getSizeOfImageCurrentProcess();
 
-	static LONGLONG getFileSize(HANDLE hFile);
-	static LONGLONG getFileSize(const WCHAR * filePath);
+	static DWORD getFileSize(HANDLE hFile);
+	static DWORD getFileSize(const WCHAR * filePath);
 
 	static DWORD getEntryPointFromFile(const WCHAR * filePath);
 

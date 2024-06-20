@@ -1,5 +1,4 @@
 #pragma once
-#define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <windows.h>
 #include <map>
 #include <hash_map>
