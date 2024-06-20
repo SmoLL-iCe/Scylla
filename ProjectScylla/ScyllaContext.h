@@ -24,8 +24,10 @@ public:
 	void dumpFixActionHandler( );
 	void peRebuildActionHandler( );
 	void getImportsActionHandler( );
-	void iatAutosearchActionHandler( DWORD_PTR entrypoint );
+	void iatAutosearchActionHandler( );
 	int setProcessById( std::uint32_t uProcessId );
+
+	void setDefaultFolder( const std::wstring& strNewFolder );
 private:
 	void checkSuspendProcess( );
 	bool isIATOutsidePeImage( DWORD_PTR addressIAT );

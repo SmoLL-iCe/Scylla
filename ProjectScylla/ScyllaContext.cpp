@@ -97,7 +97,16 @@ int ScyllaContext::setProcessById( std::uint32_t uProcessId ) {
 
 	m_entrypoint = entryPoint + processPtr->imageBase;
 
+	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList );
+
+	apiReader.readApisFromModuleList( );
+
+	Logs( "%s Loading modules done.\n", __FUNCTION__ );
+
+	Logs( "%s Imagebase: " PRINTF_DWORD_PTR_FULL_S " Size: %08X\n", __FUNCTION__, processPtr->imageBase, processPtr->imageSize );
+
 	getCurrentDefaultDumpFilename( );
+
 
 	return SCY_ERROR_SUCCESS;
 }
@@ -149,14 +158,10 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 
 	if ( ProcessAccessHelp::moduleList.empty( ) )
 	{
-		ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList );
-
-		if ( ProcessAccessHelp::moduleList.empty( ) )
-		{
-			Logs( "%s failed to list modules\n", __FUNCTION__ );
-			return false;
-		}
+		Logs( "%s failed to list modules\n", __FUNCTION__ );
+		return false;
 	}
+
 
 	std::unique_ptr<std::uint8_t[ ]> pModuleHeaders( new std::uint8_t[ 0x1000 ] );
 
@@ -195,12 +200,6 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 				min( strModulePath.size( ) * 2, sizeof( ProcessAccessHelp::selectedModule->fullPath ) ) );
 		}
 	}
-
-	apiReader.readApisFromModuleList( );
-
-	Logs( "%s Loading modules done.\n", __FUNCTION__ );
-
-	Logs( "%s Imagebase: " PRINTF_DWORD_PTR_FULL_S " Size: %08X\n", __FUNCTION__, processPtr->imageBase, processPtr->imageSize );
 
 	getCurrentDefaultDumpFilename( );
 
@@ -504,9 +503,9 @@ void ScyllaContext::setDialogIATAddressAndSize( DWORD_PTR addressIAT, DWORD size
 	MessageBox( 0, stringBuffer, L"IAT found", MB_ICONINFORMATION );
 }
 
-void ScyllaContext::iatAutosearchActionHandler( DWORD_PTR entrypoint )
+void ScyllaContext::iatAutosearchActionHandler( )
 {
-	DWORD_PTR searchAddress = entrypoint;
+	DWORD_PTR searchAddress = m_entrypoint;
 	DWORD_PTR addressIAT = 0, addressIATAdv = 0;
 	DWORD sizeIAT = 0, sizeIATAdv = 0;
 	IATSearch iatSearch{ };
@@ -652,4 +651,21 @@ void ScyllaContext::getImportsActionHandler( )
 		Logs( "%s WARNING! IAT is not inside the PE image, requires rebasing!\n", __FUNCTION__ );
 	}
 
+}
+
+void ScyllaContext::setDefaultFolder( const std::wstring& strNewFolder ) {
+
+	if ( defaultFilename.empty( ) )
+		return;
+
+	auto nPos = defaultFilename.find_last_of( L'\\' );
+
+	if ( nPos == std::wstring::npos )
+		return;
+
+	auto filename = defaultFilename.substr( nPos + 1 );
+	auto filenameScy = defaultFilenameScy.substr( nPos + 1 );
+
+	defaultFilename = strNewFolder + L"\\" + filename;
+	defaultFilenameScy = strNewFolder + L"\\" + filenameScy;
 }

@@ -28,8 +28,6 @@ unsigned int  ProcessAccessHelp::decodedInstructionsCount = 0;
 
 BYTE ProcessAccessHelp::fileHeaderFromDisk[ PE_HEADER_BYTES_COUNT ];
 
-//#define DEBUG_COMMENTS
-
 bool ProcessAccessHelp::openProcessHandle( DWORD dwPID )
 {
 	if ( !dwPID )
@@ -374,17 +372,14 @@ bool ProcessAccessHelp::writeMemoryToFileEnd( HANDLE hFile, DWORD size, LPCVOID 
 		{
 			return true;
 		}
-		else
-		{
-			LOGS_DEBUG( "writeMemoryToFileEnd :: WriteFile failed - size %d - error %u", size, GetLastError( ) );
-			return false;
-		}
-	}
-	else
-	{
-		LOGS_DEBUG( "writeMemoryToFileEnd :: hFile invalid" );
+
+		LOGS_DEBUG( "writeMemoryToFileEnd :: WriteFile failed - size %d - error %u", size, GetLastError( ) );
+
 		return false;
 	}
+
+	LOGS_DEBUG( "writeMemoryToFileEnd :: hFile invalid" );
+	return false;
 }
 
 bool ProcessAccessHelp::readHeaderFromFile( BYTE* buffer, DWORD bufferSize, const WCHAR* filePath )
@@ -424,7 +419,6 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 
 	if ( hFile == INVALID_HANDLE_VALUE )
 	{
-
 		LOGS_DEBUG( "createFileMappingView :: INVALID_HANDLE_VALUE %u", GetLastError( ) );
 
 		return nullptr;
@@ -436,7 +430,6 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 
 	if ( hMappedFile == nullptr )
 	{
-
 		LOGS_DEBUG( "createFileMappingView :: hMappedFile == nullptr" );
 
 		return nullptr;
@@ -444,7 +437,6 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 
 	if ( GetLastError( ) == ERROR_ALREADY_EXISTS )
 	{
-
 		LOGS_DEBUG( "createFileMappingView :: GetLastError() == ERROR_ALREADY_EXISTS" );
 
 		CloseHandle( hMappedFile );
@@ -456,7 +448,6 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 
 	if ( addrMappedDll == nullptr )
 	{
-
 		LOGS_DEBUG( "createFileMappingView :: addrMappedDll == nullptr" );
 
 		CloseHandle( hMappedFile );
@@ -557,12 +548,10 @@ bool ProcessAccessHelp::getMemoryRegionFromAddress( DWORD_PTR address, DWORD_PTR
 		LOGS_DEBUG( "getMemoryRegionFromAddress :: VirtualQueryEx error %u", GetLastError( ) );
 		return false;
 	}
-	else
-	{
-		*memoryRegionBase = reinterpret_cast<DWORD_PTR>( memBasic.BaseAddress );
-		*memoryRegionSize = memBasic.RegionSize;
-		return true;
-	}
+
+	*memoryRegionBase = reinterpret_cast<DWORD_PTR>( memBasic.BaseAddress );
+	*memoryRegionSize = memBasic.RegionSize;
+	return true;
 }
 
 bool ProcessAccessHelp::getSizeOfImageCurrentProcess( )
@@ -574,10 +563,8 @@ bool ProcessAccessHelp::getSizeOfImageCurrentProcess( )
 		ProcessAccessHelp::targetSizeOfImage = newSizeOfImage;
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+
+	return false;	
 }
 
 SIZE_T ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, DWORD_PTR moduleBase )

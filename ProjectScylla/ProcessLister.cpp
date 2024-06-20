@@ -218,7 +218,7 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
 
     HANDLE hProcess = ApiTools::OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process.PID );
 
-    if ( hProcess )
+    if ( hProcess && hProcess != INVALID_HANDLE_VALUE )
     {
         ProcessType processType = checkIsProcess64( hProcess );
 

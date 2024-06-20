@@ -62,6 +62,17 @@ void frame_controls( gl_window* instance )
     static ScyllaContext scyllaCtx = {};
     static ModuleInfo currentModule = {};
 
+    static bool bOnce = true;
+
+    if ( bOnce )
+    {
+        scyllaCtx.setProcessById( 26176);
+
+        scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
+
+        bOnce = false;
+    }
+
     if ( ImGui::Begin( "aaah", nullptr, window_flags ) )
     {
         if ( ImGui::BeginChild( "##process", ImVec2( instance->get_size( ).x - 16.f, 50.f ), true ) )
@@ -86,6 +97,8 @@ void frame_controls( gl_window* instance )
                         currentProcess = *( &( *it ));
 
                         scyllaCtx.setProcessById( currentProcess.PID );
+
+                        scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
                     }
 
                     if ( is_selected )
@@ -124,7 +137,7 @@ void frame_controls( gl_window* instance )
                         {
                             currentModule = moduleInfo;
 
-                            scyllaCtx.setTargetModule( currentModule.modBaseAddr, currentModule.modBaseSize, currentModule.getFilename( ) );
+                            scyllaCtx.setTargetModule( currentModule.modBaseAddr, currentModule.modBaseSize, currentModule.fullPath );
                         }
 
                         if ( is_selected )
@@ -152,6 +165,17 @@ void frame_controls( gl_window* instance )
                 //    }
                 //}
             }
+        
+            if ( ImGui::Button( "Dump" ) )
+            {
+                scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
+
+                scyllaCtx.iatAutosearchActionHandler( );
+                scyllaCtx.getImportsActionHandler( );
+
+				//scyllaCtx.dumpActionHandler( );
+
+			}
         }
 
 

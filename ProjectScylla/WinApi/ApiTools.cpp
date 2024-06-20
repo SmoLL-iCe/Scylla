@@ -104,7 +104,7 @@ HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHand
 	}
 	else
 	{
-		LOGS_DEBUG( "NtOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, RtlNtStatusToDosError( ntStatus ) );
+		//LOGS_DEBUG( "NtOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, RtlNtStatusToDosError( ntStatus ) );
 	}
 
 	return ::OpenProcess( dwDesiredAccess, bInheritHandle, dwProcessId );

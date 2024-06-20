@@ -1,6 +1,7 @@
 
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
+#include <memory>
 
 DeviceNameResolver::DeviceNameResolver( )
 {
@@ -20,7 +21,7 @@ void DeviceNameResolver::initDeviceNameList( )
 
     shortName[ 1 ] = TEXT( ':' );
 
-    deviceNameList.reserve( 3 );
+    deviceNameList.reserve( 26 );
 
     for ( TCHAR shortD = TEXT( 'a' ); shortD <= TEXT( 'z' ); shortD++ )
     {
@@ -32,7 +33,6 @@ void DeviceNameResolver::initDeviceNameList( )
             hardDisk.shortName[ 2 ] = 0;
 
             hardDisk.longNameLength = _tcslen( longName );
-
 
             _tcscpy_s( hardDisk.longName, longName );
             deviceNameList.push_back( hardDisk );
@@ -67,13 +67,15 @@ void DeviceNameResolver::fixVirtualDevices( )
     HANDLE hFile = 0;
     ULONG retLen = 0;
 
-    unicodeOutput.Buffer = (PWSTR)malloc( BufferSize );
-    if ( !unicodeOutput.Buffer )
+    auto unicodeOutputBuffer = std::make_unique<WCHAR[ ]>( BufferSize / sizeof( WCHAR ) );
+    if ( !unicodeOutputBuffer )
         return;
 
-    for ( unsigned int i = 0; i < deviceNameList.size( ); i++ )
+    unicodeOutput.Buffer = unicodeOutputBuffer.get( );
+
+    for ( auto& device : deviceNameList )
     {
-        wcscpy_s( longCopy, deviceNameList[ i ].longName );
+        wcscpy_s( longCopy, device.longName );
 
         RtlInitUnicodeString( &unicodeInput, longCopy );
         InitializeObjectAttributes( &oa, &unicodeInput, 0, 0, 0 );
@@ -86,11 +88,11 @@ void DeviceNameResolver::fixVirtualDevices( )
 
             if ( NT_SUCCESS( NtQuerySymbolicLinkObject( hFile, &unicodeOutput, &retLen ) ) )
             {
-                HardDisk hardDisk{ };
+                HardDisk hardDisk{};
 
                 hardDisk.longNameLength = wcslen( unicodeOutput.Buffer );
 
-                wcscpy_s( hardDisk.shortName, deviceNameList[ i ].shortName );
+                wcscpy_s( hardDisk.shortName, device.shortName );
 
                 wcscpy_s( hardDisk.longName, unicodeOutput.Buffer );
 
@@ -100,7 +102,6 @@ void DeviceNameResolver::fixVirtualDevices( )
             NtClose( hFile );
         }
     }
-
-    free( unicodeOutput.Buffer );
 }
+
 
