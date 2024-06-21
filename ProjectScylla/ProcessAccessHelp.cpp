@@ -10,7 +10,7 @@
 
 HANDLE ProcessAccessHelp::hProcess = 0;
 
-ModuleInfo* ProcessAccessHelp::selectedModule;
+//ModuleInfo* ProcessAccessHelp::selectedModule;
 DWORD_PTR ProcessAccessHelp::targetImageBase = 0;
 DWORD_PTR ProcessAccessHelp::targetSizeOfImage = 0;
 DWORD_PTR ProcessAccessHelp::maxValidAddress = 0;
@@ -75,7 +75,7 @@ void ProcessAccessHelp::closeProcessHandle( )
 
 	targetImageBase = 0;
 
-	selectedModule = nullptr;
+	//selectedModule = nullptr;
 }
 
 bool ProcessAccessHelp::readMemoryPartlyFromProcess( DWORD_PTR address, SIZE_T size, LPVOID dataBuffer )
@@ -642,7 +642,7 @@ DWORD ProcessAccessHelp::getModuleHandlesFromProcess(const HANDLE hProcess, HMOD
 
     do
     {
-        if (!EnumProcessModules(hProcess, &modules[0], modules.size() * sizeof(HMODULE), &cbNeeded))
+        if (!EnumProcessModules(hProcess, &modules[0], static_cast<DWORD>(modules.size() * sizeof(HMODULE)), &cbNeeded))
         {
             LOGS_DEBUG("getModuleHandlesFromProcess :: EnumProcessModules failed count %lu", modules.size());
 

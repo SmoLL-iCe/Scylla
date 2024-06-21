@@ -86,6 +86,7 @@ public:
 	DWORD getSectionAddressRVAByIndex( int index );
 
     PIMAGE_NT_HEADERS getCurrentNtHeader() const;
+	IMAGE_DATA_DIRECTORY* getDirectory( const int directoryIndex );
 protected:
 	PeParser();
 
@@ -123,10 +124,10 @@ protected:
 	bool readPeHeaderFromFile(bool readSectionHeaders);
 	bool readPeHeaderFromProcess(bool readSectionHeaders);
 
-	bool hasDirectory(const int directoryIndex);
+	bool hasDirectory(const int directoryIndex) const;
 	bool getSectionHeaders();
 	void getDosAndNtHeader(BYTE * memory, LONG size);
-	DWORD calcCorrectPeHeaderSize( bool readSectionHeaders );
+	DWORD calcCorrectPeHeaderSize( bool readSectionHeaders ) const;
 	DWORD getInitialHeaderReadSize( bool readSectionHeaders );
 	bool openFileHandle();
 	void closeFileHandle();

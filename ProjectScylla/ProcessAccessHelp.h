@@ -88,7 +88,7 @@ public:
 	static DWORD_PTR targetSizeOfImage;
 	static DWORD_PTR maxValidAddress;
 
-	static ModuleInfo * selectedModule;
+	//static ModuleInfo * selectedModule;
 
 	static std::vector<ModuleInfo> moduleList; //target process module list
 	static std::vector<ModuleInfo> ownModuleList; //own module list

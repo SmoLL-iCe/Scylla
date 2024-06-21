@@ -181,7 +181,7 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 
 	ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
 
-	ProcessAccessHelp::selectedModule = 0;
+	//ProcessAccessHelp::selectedModule = 0;
 	ProcessAccessHelp::targetImageBase = processPtr->imageBase;
 	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;
 
@@ -242,7 +242,7 @@ int WINAPI ScyllaIatFixAutoW(DWORD_PTR iatAddr, DWORD iatSize, DWORD dwProcessId
 
 	ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
 
-	ProcessAccessHelp::selectedModule = 0;
+	//ProcessAccessHelp::selectedModule = 0;
 	ProcessAccessHelp::targetImageBase = processPtr->imageBase;
 	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;
 

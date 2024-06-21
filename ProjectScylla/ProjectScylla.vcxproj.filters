@@ -143,6 +143,9 @@
     <ClCompile Include="Tools\Logs.cpp">
       <Filter>Tools</Filter>
     </ClCompile>
+    <ClCompile Include="Tools\Utils.cpp">
+      <Filter>Tools</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="diStorm\include\distorm.h">
@@ -269,6 +272,9 @@
       <Filter>WinApi</Filter>
     </ClInclude>
     <ClInclude Include="Tools\Logs.h">
+      <Filter>Tools</Filter>
+    </ClInclude>
+    <ClInclude Include="Tools\Utils.h">
       <Filter>Tools</Filter>
     </ClInclude>
   </ItemGroup>

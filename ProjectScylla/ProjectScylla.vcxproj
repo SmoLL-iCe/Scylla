@@ -180,6 +180,7 @@
     <ClCompile Include="StringConversion.cpp" />
     <ClCompile Include="SystemInformation.cpp" />
     <ClCompile Include="Tools\Logs.cpp" />
+    <ClCompile Include="Tools\Utils.cpp" />
     <ClCompile Include="WinApi\ApiTools.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -223,6 +224,7 @@
     <ClInclude Include="SystemInformation.h" />
     <ClInclude Include="Thunks.h" />
     <ClInclude Include="Tools\Logs.h" />
+    <ClInclude Include="Tools\Utils.h" />
     <ClInclude Include="WinApi\ApiTools.h" />
     <ClInclude Include="WinApi\ntos.h" />
   </ItemGroup>

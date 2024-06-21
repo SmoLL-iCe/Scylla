@@ -438,7 +438,7 @@ void ImportsHandling::updateImportInTreeView(const ImportThunk * importThunk, CT
 	}
 
 	item.SetText(stringBuffer);
-	Icon icon = getAppropiateIcon(importThunk);
+	Icon icon = getAppropriateIcon(importThunk);
 	item.SetImage(icon, icon);
 }
 
@@ -447,11 +447,11 @@ void ImportsHandling::updateModuleInTreeView(const ImportModuleThunk * importThu
 	swprintf_s(stringBuffer, L"%s (%d) FThunk: " PRINTF_DWORD_PTR_HALF, importThunk->moduleName,importThunk->thunkList.size(), importThunk->firstThunk);
 
 	item.SetText(stringBuffer);
-	Icon icon = getAppropiateIcon(importThunk->isValid());
+	Icon icon = getAppropriateIcon(importThunk->isValid());
 	item.SetImage(icon, icon);
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropiateIcon(const ImportThunk * importThunk)
+ImportsHandling::Icon ImportsHandling::getAppropriateIcon(const ImportThunk * importThunk)
 {
 	if(importThunk->valid)
 	{
@@ -470,7 +470,7 @@ ImportsHandling::Icon ImportsHandling::getAppropiateIcon(const ImportThunk * imp
 	}
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropiateIcon(bool valid)
+ImportsHandling::Icon ImportsHandling::getAppropriateIcon(bool valid)
 {
 	if(valid)
 	{

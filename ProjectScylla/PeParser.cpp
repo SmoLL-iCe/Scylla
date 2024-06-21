@@ -135,10 +135,17 @@ bool PeParser::isValidPeFile( ) const
 	return ( pNTHeader32->Signature == IMAGE_NT_SIGNATURE );
 }
 
-bool PeParser::hasDirectory( const int directoryIndex )
+bool PeParser::hasDirectory( const int directoryIndex ) const
 {
 	return isPE32( ) ? ( pNTHeader32->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 ) :
 		isPE64( ) ? ( pNTHeader64->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 ) : false;
+}
+
+
+IMAGE_DATA_DIRECTORY* PeParser::getDirectory( const int directoryIndex )
+{
+	return isPE32( ) ? ( &pNTHeader32->OptionalHeader.DataDirectory[ directoryIndex ] ) :
+		isPE64( ) ? ( &pNTHeader64->OptionalHeader.DataDirectory[ directoryIndex ] ) : nullptr;
 }
 
 bool PeParser::hasExportDirectory( )
@@ -379,7 +386,7 @@ void PeParser::getDosAndNtHeader( BYTE* memory, LONG size )
 	}
 }
 
-DWORD PeParser::calcCorrectPeHeaderSize( bool readSectionHeaders )
+DWORD PeParser::calcCorrectPeHeaderSize( bool readSectionHeaders ) const
 {
 	DWORD correctSize = pDosHeader->e_lfanew + 50; //extra buffer
 
@@ -866,7 +873,9 @@ void PeParser::fixPeHeader( )
 			pNTHeader32->OptionalHeader.ImageBase = (DWORD)moduleBaseAddress;
 		}
 
-		pNTHeader32->OptionalHeader.SizeOfHeaders = alignValue( dwSize + pNTHeader32->FileHeader.SizeOfOptionalHeader + ( getNumberOfSections( ) * sizeof( IMAGE_SECTION_HEADER ) ), pNTHeader32->OptionalHeader.FileAlignment );
+		pNTHeader32->OptionalHeader.SizeOfHeaders = alignValue( static_cast<unsigned long long>( dwSize ) + 
+			pNTHeader32->FileHeader.SizeOfOptionalHeader + ( getNumberOfSections( ) * sizeof( IMAGE_SECTION_HEADER ) ), 
+			pNTHeader32->OptionalHeader.FileAlignment );
 	}
 	else
 	{

@@ -7,6 +7,7 @@
 #include <chrono>
 #include "../ProcessLister.h"
 #include "../ScyllaContext.h"
+#include "../Tools/Utils.h"
 using namespace std::chrono_literals;
 
 ImVec4 hex2float_color( uint32_t hex_color, const float a = 1.f )
@@ -36,7 +37,7 @@ void frame_controls( gl_window* instance )
 
 
         instance->set_frame_pos( 0.f, 0.f );
-        instance->set_size( 600, 370 );
+        instance->set_size( 600, 670 );
         instance->center( );
     }
 
@@ -66,7 +67,7 @@ void frame_controls( gl_window* instance )
 
     if ( bOnce )
     {
-        scyllaCtx.setProcessById( 26176);
+        scyllaCtx.setProcessById( 53496 );
 
         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
@@ -170,12 +171,55 @@ void frame_controls( gl_window* instance )
             {
                 scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
-                scyllaCtx.iatAutosearchActionHandler( );
+                //scyllaCtx.iatAutosearchActionHandler( );
                 scyllaCtx.getImportsActionHandler( );
 
 				//scyllaCtx.dumpActionHandler( );
 
 			}
+
+            if ( scyllaCtx.getImportsHandling( )->thunkCount( ) )
+            {
+                ImGui::Text( "IAT: %llX, %lX", scyllaCtx.m_addressIAT, scyllaCtx.m_sizeIAT );
+
+                for ( auto& [key, moduleThunk] : scyllaCtx.getImportsHandling( )->moduleList )
+                {
+                    std::string strModuleName = "";
+
+                    if ( !moduleThunk.isValid( ) )
+                        continue;
+
+                    strModuleName = std::format( "{} ({})", Utils::wstrToStr( moduleThunk.moduleName ), moduleThunk.thunkList.size( ) );
+
+                    if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
+                    {
+                        for ( auto& [rva, importThunk] : moduleThunk.thunkList )
+                        {
+                            std::string strFuncName = "";
+
+                            if ( !importThunk.valid )
+                                continue;
+
+                            strFuncName = std::format( "{}", importThunk.name );
+
+                            ImGui::Text( strFuncName.c_str( ) );
+
+                            //else if ( importThunk.suspect )
+                            //    m_suspectThunkCount++;
+
+
+
+
+                        }
+                        ImGui::TreePop( );
+                    }
+                }
+                //ImGuiTreeNodeFlags flag = ImGuiTreeNodeFlags_DefaultOpen; 
+       
+
+
+            }
+
         }
 
 
