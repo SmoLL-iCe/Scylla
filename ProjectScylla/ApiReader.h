@@ -3,8 +3,10 @@
 #include <windows.h>
 #include <map>
 #include <hash_map>
+#include <memory>
 #include "ProcessAccessHelp.h"
 #include "Thunks.h"
+#include <unordered_map>
 
 typedef std::pair<DWORD_PTR, ApiInfo*> API_Pair;
 
@@ -30,6 +32,8 @@ public:
 	void clearAll( );
 	bool isInvalidMemoryForIat( DWORD_PTR address );
 private:
+
+	ImportModuleThunk* findModuleForRVA( DWORD_PTR rva, bool addUnknownModuleIfNeeded = false );
 	bool readExportTableAlwaysFromDisk;
 	void parseIAT( DWORD_PTR addressIAT, BYTE* iatBuffer, SIZE_T size );
 
@@ -37,27 +41,27 @@ private:
 	void addApiWithoutName( WORD ordinal, DWORD_PTR va, DWORD_PTR rva, bool isForwarded, ModuleInfo* moduleInfo );
 	inline bool isApiForwarded( DWORD_PTR rva, PIMAGE_NT_HEADERS pNtHeader );
 	void handleForwardedApi( DWORD_PTR vaStringPointer, const char* functionNameParent, DWORD_PTR rvaParent, WORD ordinalParent, ModuleInfo* moduleParent );
-	void parseModule( ModuleInfo* module );
-	void parseModuleWithProcess( ModuleInfo* module );
+	void parseModule( ModuleInfo* pModule );
+	void parseModuleWithProcess( ModuleInfo* pModule );
 
-	void parseExportTable( ModuleInfo* module, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress );
+	void parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress );
 
-	ModuleInfo* findModuleByName( WCHAR* name );
+	ModuleInfo* findModuleByName( const WCHAR* name );
 
-	void findApiByModuleAndOrdinal( ModuleInfo* module, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	void findApiByModuleAndName( ModuleInfo* module, const char* searchFunctionName, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	void findApiByModule( ModuleInfo* module, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiByModuleAndOrdinal( ModuleInfo* pModule, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiByModuleAndName( ModuleInfo* pModule, const char* searchFunctionName, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiByModule( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
 
-	bool isModuleLoadedInOwnProcess( ModuleInfo* module );
-	void parseModuleWithOwnProcess( ModuleInfo* module );
+	bool isModuleLoadedInOwnProcess( ModuleInfo* pModule );
+	void parseModuleWithOwnProcess( ModuleInfo* pModule );
 	bool isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader );
-	void findApiInProcess( ModuleInfo* module, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	bool findApiInExportTable( ModuleInfo* module, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiInProcess( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	bool findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
 
-	BYTE* getHeaderFromProcess( ModuleInfo* module );
-	BYTE* getExportTableFromProcess( ModuleInfo* module, PIMAGE_NT_HEADERS pNtHeader );
+	std::unique_ptr<BYTE[ ]> getHeaderFromProcess( ModuleInfo* pModule );
+	std::unique_ptr<BYTE[ ]> getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader );
 
-	void setModulePriority( ModuleInfo* module );
+	void setModulePriority( ModuleInfo* pModule );
 	void setMinMaxApiAddress( DWORD_PTR virtualAddress );
 
 	void parseModuleWithMapping( ModuleInfo* moduleInfo ); //not used
@@ -68,7 +72,7 @@ private:
 
 	void addUnknownModuleToModuleList( DWORD_PTR firstThunk );
 	bool isApiBlacklisted( const char* functionName );
-	bool isWinSxSModule( ModuleInfo* module );
+	bool isWinSxSModule( ModuleInfo* pModule );
 
 	ApiInfo* getScoredApi( stdext::hash_map<DWORD_PTR, ApiInfo*>::iterator it1, size_t countDuplicates, bool hasName, bool hasUnicodeAnsiName, bool hasNoUnderlineInName, bool hasPrioDll, bool hasPrio0Dll, bool hasPrio1Dll, bool hasPrio2Dll, bool firstWin );
 

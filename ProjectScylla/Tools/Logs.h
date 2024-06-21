@@ -9,7 +9,8 @@ namespace nlog
 	bool Send( const char* szFormat, ... );
 }
 
-#define LOGS(fmt, ...) nlog::Send( fmt ## "\n", __VA_ARGS__)
+//#define LOGS(fmt, ...) nlog::Send( fmt ## "\n", __VA_ARGS__)
+#define LOGS(fmt, ...) //nlog::Send( fmt ## "\n", __VA_ARGS__)
 
 
 //#define LOGS_DEBUG(fmt, ...) { nlog::SetConsoleColor( FOREGROUND_RED | FOREGROUND_INTENSITY ); \
