@@ -571,13 +571,8 @@ void ScyllaContext::getImportsActionHandler( )
 
 	importsHandling.scanAndFixModuleList( );
 
-	importsHandling.updateCounts( );
+	importsHandling.displayAllImports( );
 
-	//importsHandling.displayAllImports( );
-	return;
-
-	//unsigned int totalImports = importsHandling.thunkCount( );
-	//unsigned int invalidImports = importsHandling.invalidThunkCount( );
 
 	if ( Config::SCAN_DIRECT_IMPORTS )
 	{

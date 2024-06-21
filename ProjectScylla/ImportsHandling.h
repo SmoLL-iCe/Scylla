@@ -2,7 +2,6 @@
 
 #include <windows.h>
 #include <map>
-#include <hash_map>
 
 class CMultiSelectTreeViewCtrl;
 

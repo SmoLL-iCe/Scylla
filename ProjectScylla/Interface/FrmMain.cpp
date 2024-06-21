@@ -181,40 +181,84 @@ void frame_controls( gl_window* instance )
             if ( scyllaCtx.getImportsHandling( )->thunkCount( ) )
             {
                 ImGui::Text( "IAT: %llX, %lX", scyllaCtx.m_addressIAT, scyllaCtx.m_sizeIAT );
+                ImGui::NewLine( );
+                ImGui::Text( "thunkCount: %d, invalid %d, suspect %d", 
+                    scyllaCtx.getImportsHandling( )->thunkCount( ), 
+                    scyllaCtx.getImportsHandling( )->invalidThunkCount(),
+                    scyllaCtx.getImportsHandling( )->suspectThunkCount() 
+                );
+                ImGui::NewLine( );
 
                 for ( auto& [key, moduleThunk] : scyllaCtx.getImportsHandling( )->moduleList )
                 {
                     std::string strModuleName = "";
 
-                    if ( !moduleThunk.isValid( ) )
-                        continue;
+                    //if ( !moduleThunk.isValid( ) )
+                    //    continue;
 
-                    strModuleName = std::format( "{} ({})", Utils::wstrToStr( moduleThunk.moduleName ), moduleThunk.thunkList.size( ) );
+                    strModuleName = std::format( "{} {} ({})", (( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]"), Utils::wstrToStr( moduleThunk.moduleName ), moduleThunk.thunkList.size( ) );
 
                     if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
                     {
+                        if ( ImGui::BeginPopupContextItem( strModuleName.c_str( ) ) )
+                        {
+                            if ( ImGui::MenuItem( "Ivalidade" ) )
+                            {
+								scyllaCtx.getImportsHandling( )->invalidateModule( &moduleThunk );
+
+                            }
+
+
+                            if ( ImGui::MenuItem( "Cut Module" ) )
+                            {
+                                scyllaCtx.getImportsHandling( )->cutModule( &moduleThunk );
+                                ImGui::EndPopup( );
+                                ImGui::TreePop( );
+                                break; // prevent crash
+
+                            }
+
+                            ImGui::EndPopup( );
+                        }
+
                         for ( auto& [rva, importThunk] : moduleThunk.thunkList )
                         {
                             std::string strFuncName = "";
 
-                            if ( !importThunk.valid )
-                                continue;
+                            //if ( !importThunk.valid )
+                            //    continue;
 
-                            strFuncName = std::format( "{}", importThunk.name );
+                            strFuncName = std::format( "  {} {}",
+                                ( ( !importThunk.valid ) ? "[Invalid]" : ( importThunk.suspect ? "[Suspect]" : "[OK]" ) ),
+                                importThunk.name );
 
                             ImGui::Text( strFuncName.c_str( ) );
 
-                            //else if ( importThunk.suspect )
-                            //    m_suspectThunkCount++;
+                            if ( ImGui::BeginPopupContextItem( strFuncName.c_str( ) ) )
+                            {
+                                if ( ImGui::MenuItem( "Ivalidade" ) )
+                                {
+                                    printf ( "Option 1 %s\n", strFuncName.c_str( ) );
 
-
-
+                                    scyllaCtx.getImportsHandling( )->invalidateImport( &importThunk );
+                                }
+                                if ( ImGui::MenuItem( "Cut Thunk" ) )
+                                {
+                                    scyllaCtx.getImportsHandling( )->cutImport( &importThunk );
+                                    ImGui::EndPopup( );
+                                    break; // prevent crash
+                                }
+                                if ( ImGui::MenuItem( "Option 3" ) )
+                                {
+                                    // Handle Option 3
+                                }
+                                ImGui::EndPopup( );
+                            }
 
                         }
                         ImGui::TreePop( );
                     }
                 }
-                //ImGuiTreeNodeFlags flag = ImGuiTreeNodeFlags_DefaultOpen; 
        
 
 
