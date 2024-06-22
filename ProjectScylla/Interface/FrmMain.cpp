@@ -8,6 +8,11 @@
 #include "../ProcessLister.h"
 #include "../ScyllaContext.h"
 #include "../Tools/Utils.h"
+#include <future>
+#include <chrono>
+#include <coroutine>
+#include <thread>
+
 using namespace std::chrono_literals;
 
 ImVec4 hex2float_color( uint32_t hex_color, const float a = 1.f )
@@ -63,17 +68,6 @@ void frame_controls( gl_window* instance )
     static ScyllaContext scyllaCtx = {};
     static ModuleInfo currentModule = {};
 
-    static bool bOnce = true;
-
-    if ( bOnce )
-    {
-        //scyllaCtx.setProcessById( 53496 );
-        scyllaCtx.setProcessById( GetCurrentProcessId( ) );
-
-        scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
-
-        bOnce = false;
-    }
 
     if ( ImGui::Begin( "aaah", nullptr, window_flags ) )
     {
@@ -170,10 +164,14 @@ void frame_controls( gl_window* instance )
         
             if ( ImGui::Button( "Dump" ) )
             {
-                scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
-                scyllaCtx.iatAutosearchActionHandler( );
-                scyllaCtx.getImportsActionHandler( );
+                std::thread( [ & ]( )
+                    {
+                        scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
+                        scyllaCtx.iatAutosearchActionHandler( );
+                        scyllaCtx.getImportsActionHandler( );
+					} ).detach( );
+
 
 				//scyllaCtx.dumpActionHandler( );
 
@@ -194,6 +192,7 @@ void frame_controls( gl_window* instance )
                 {
                     std::string strModuleName = "";
 
+                    
                     //if ( !moduleThunk.isValid( ) )
                     //    continue;
 
@@ -272,6 +271,25 @@ void frame_controls( gl_window* instance )
 
 
         ImGui::End( );
+    }
+
+
+    static bool bOnce = true;
+
+    if ( bOnce )
+    {
+        //scyllaCtx.setProcessById( 53496 );
+
+        //  auto future = std::async( std::launch::async, &ScyllaContext::setProcessById, &scyllaCtx, GetCurrentProcessId( ) );
+        std::thread( [ & ]( )
+            {
+                scyllaCtx.setProcessById( GetCurrentProcessId( ) );
+                scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
+
+            } ).detach( );
+
+
+        bOnce = false;
     }
 }
 

@@ -222,11 +222,11 @@ void IATReferenceScan::findNormalIatReference( _DInst* instruction )
 
 				LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S, 
 					instruction->addr, 
-					ImageBase, inst.mnemonic.p, inst.operands.p, instruction->ops[ 0 ].type, instruction->size, instruction->disp );
+					ImageBase, inst.mnemonic.p, inst.operands.p, instruction->ops[ 0 ].type, instruction->size, static_cast<DWORD_PTR>( instruction->disp ) );
 
 				if ( instruction->disp >= IatAddressVA && instruction->disp < ( IatAddressVA + IatSize ) )
 				{
-					ref.targetPointer = reinterpret_cast<DWORD_PTR>(instruction->disp);
+					ref.targetPointer = static_cast<DWORD_PTR>(instruction->disp);
 
 					getIatEntryAddress( &ref );
 

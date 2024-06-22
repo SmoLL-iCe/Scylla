@@ -18,8 +18,7 @@ private:
 	bool findIATAdvanced(DWORD_PTR startAddress,DWORD_PTR* addressIAT, DWORD* sizeIAT);
 	DWORD_PTR findNextFunctionAddress();
 	DWORD_PTR findIATPointer();
-	//DWORD_PTR findAddressFromWORDString(char * stringBuffer);
-	//DWORD_PTR findAddressFromNormalCALLString(char * stringBuffer);
+
 	bool isIATPointerValid(DWORD_PTR iatPointer, bool checkRedirects);
 
 	bool findIATStartAndSize(DWORD_PTR address, DWORD_PTR * addressIAT, DWORD * sizeIAT);

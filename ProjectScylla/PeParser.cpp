@@ -141,7 +141,6 @@ bool PeParser::hasDirectory( const int directoryIndex ) const
 		isPE64( ) ? ( pNTHeader64->OptionalHeader.DataDirectory[ directoryIndex ].VirtualAddress != 0 ) : false;
 }
 
-
 IMAGE_DATA_DIRECTORY* PeParser::getDirectory( const int directoryIndex )
 {
 	return isPE32( ) ? ( &pNTHeader32->OptionalHeader.DataDirectory[ directoryIndex ] ) :
@@ -791,7 +790,7 @@ bool PeParser::addNewLastSection( const CHAR* sectionName, DWORD sectionSize, BY
 
 DWORD_PTR PeParser::getStandardImagebase( )
 {
-	return ( isPE32( ) ) ? pNTHeader32->OptionalHeader.ImageBase : pNTHeader64->OptionalHeader.ImageBase;
+	return ( isPE32( ) ) ? pNTHeader32->OptionalHeader.ImageBase : static_cast<DWORD_PTR>( pNTHeader64->OptionalHeader.ImageBase );
 }
 
 int PeParser::convertRVAToOffsetVectorIndex( DWORD_PTR dwRVA )
