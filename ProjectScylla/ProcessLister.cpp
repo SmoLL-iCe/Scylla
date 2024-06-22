@@ -149,63 +149,44 @@ bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* process )
     return retVal;
 }
 
-std::vector<Process>& ProcessLister::getProcessListSnapshotNative( )
-{
+std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
     ULONG retLength = 0;
-    ULONG bufferLength = 1;
-    PSYSTEM_PROCESSES_INFORMATION pBuffer = (PSYSTEM_PROCESSES_INFORMATION)malloc( bufferLength );
+    ULONG bufferLength = sizeof( SYSTEM_PROCESSES_INFORMATION ) * 1024;
+    std::unique_ptr<BYTE[ ]> buffer( new BYTE[ bufferLength ] );
     PSYSTEM_PROCESSES_INFORMATION pIter;
-    if ( !processList.empty( ) )
-    {
-        //clear elements, but keep reversed memory
+
+    if ( !processList.empty( ) ) {
         processList.clear( );
     }
-    else
-    {
-        //first time, reserve memory
+    else {
         processList.reserve( 34 );
     }
 
-    if ( NtQuerySystemInformation( SystemProcessInformation, pBuffer, bufferLength, &retLength ) == STATUS_INFO_LENGTH_MISMATCH )
-    {
-        free( pBuffer );
-        bufferLength = retLength + sizeof( SYSTEM_PROCESSES_INFORMATION );
-        pBuffer = (PSYSTEM_PROCESSES_INFORMATION)malloc( bufferLength );
-        if ( !pBuffer )
-            return processList;
-
-        if ( NtQuerySystemInformation( SystemProcessInformation, pBuffer, bufferLength, &retLength ) != STATUS_SUCCESS )
-        {
-            return processList;
-        }
+    while ( NtQuerySystemInformation( SystemProcessInformation, buffer.get( ), bufferLength, &retLength ) == STATUS_INFO_LENGTH_MISMATCH ) {
+        bufferLength = retLength;
+        buffer.reset( new BYTE[ bufferLength ] );
     }
-    else
-    {
+
+    if ( !buffer ) {
         return processList;
     }
 
-    pIter = pBuffer;
-
-    while ( TRUE )
-    {
-        if ( pIter->UniqueProcessId > (HANDLE)4 ) //small filter
-        {
+    pIter = reinterpret_cast<PSYSTEM_PROCESSES_INFORMATION>( buffer.get( ) );
+    while ( true ) {
+        if ( reinterpret_cast<uintptr_t>( pIter->UniqueProcessId ) > 4 ) {
             handleProcessInformationAndAddToList( pIter );
         }
 
-        if ( pIter->NextEntryDelta == 0 )
-        {
+        if ( pIter->NextEntryDelta == 0 ) {
             break;
         }
-        else
-        {
-            pIter = (PSYSTEM_PROCESSES_INFORMATION)( (DWORD_PTR)pIter + (DWORD_PTR)pIter->NextEntryDelta );
+        else {
+            pIter = reinterpret_cast<PSYSTEM_PROCESSES_INFORMATION>( reinterpret_cast<uintptr_t>( pIter ) + pIter->NextEntryDelta );
         }
     }
 
-    std::reverse( processList.begin( ), processList.end( ) ); //reverse process list
+    std::reverse( processList.begin( ), processList.end( ) );
 
-    free( pBuffer );
     return processList;
 }
 

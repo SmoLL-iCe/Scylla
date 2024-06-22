@@ -67,7 +67,8 @@ void frame_controls( gl_window* instance )
 
     if ( bOnce )
     {
-        scyllaCtx.setProcessById( 53496 );
+        //scyllaCtx.setProcessById( 53496 );
+        scyllaCtx.setProcessById( GetCurrentProcessId( ) );
 
         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 

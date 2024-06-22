@@ -107,7 +107,7 @@ bool IATSearch::findIATAdvanced( DWORD_PTR startAddress, DWORD_PTR* addressIAT, 
 DWORD_PTR IATSearch::findAPIAddressInIAT( DWORD_PTR startAddress )
 {
 	const size_t MEMORY_READ_SIZE = 200;
-	BYTE dataBuffer[ MEMORY_READ_SIZE ];
+	BYTE dataBuffer[ MEMORY_READ_SIZE ]{ };
 
 	DWORD_PTR iatPointer = 0;
 	int counter = 0;
