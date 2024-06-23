@@ -6,6 +6,7 @@
 #include "Tools/Logs.h"
 #include "WinApi/ApiTools.h"
 #include <array> 
+#include "Tools/Utils.h"
 
 std::vector<Process>& ProcessLister::getProcessList( )
 {
@@ -91,7 +92,6 @@ bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* process ) {
     wcscpy_s( process->fullPath, L"Unknown path" );
 
     //some virtual volumes
-
     if ( GetProcessImageFileNameW( hProcess, processPath.data( ), processPath.size( ) ) > 0 ) {
 
         if ( deviceNameResolver->resolveDeviceLongNameToShort( processPath.data( ), process->fullPath ) ) {
@@ -111,6 +111,68 @@ bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* process ) {
 
     return false;
 }
+
+static 
+void* OldGetModuleBase( HANDLE hProcess, std::wstring ModName, size_t* Size )
+{
+    const auto strModName = Utils::StrToLower( ModName );
+
+    static bool bFound = false;
+
+    MEMORY_BASIC_INFORMATION mbi = { nullptr };
+
+    uint8_t pBuff[ MAX_PATH * 2 + 4 ] = { 0 };
+
+    bFound = false;
+
+    auto Status = ApiTools::QueryVirtualMemory( hProcess, nullptr, MemoryBasicInformation, &mbi, sizeof mbi, nullptr );
+
+    void* pInitBase = nullptr;
+
+    for ( uint8_t* Address = nullptr; !ApiTools::QueryVirtualMemory( hProcess, Address, MemoryBasicInformation, &mbi, sizeof mbi, nullptr );
+        Address = static_cast<uint8_t*>( mbi.BaseAddress ) + mbi.RegionSize )
+    {
+        if ( mbi.Type != MEM_IMAGE )
+        {
+            if ( bFound )
+                return pInitBase;
+
+            continue;
+        }
+
+        if ( ApiTools::QueryVirtualMemory( hProcess, mbi.BaseAddress, MemoryMappedFilenameInformation, pBuff, sizeof pBuff, nullptr ) )
+            continue;
+
+        auto* const pFullFile = reinterpret_cast<wchar_t*>( &pBuff[ 16 ] );
+
+        if ( !pFullFile )
+            continue;
+
+        auto strFullFile = std::wstring( pFullFile );
+
+        Utils::StrToLower( strFullFile );
+        //if ( wcsstr( pFullFile, ModName ) != nullptr )
+
+        if ( strFullFile.find( strModName ) != -1 )
+        {
+            bFound = true;
+
+            if ( !Size )
+                return mbi.BaseAddress;
+
+            *Size += mbi.RegionSize;
+
+            if ( !pInitBase )
+                pInitBase = mbi.BaseAddress;
+        }
+        else
+            if ( bFound )
+                return pInitBase;
+    }
+
+    return nullptr;
+}
+
 
 std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
 

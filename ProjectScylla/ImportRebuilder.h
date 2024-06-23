@@ -8,11 +8,11 @@
 
 class ImportRebuilder : public PeParser {
 public:
-	ImportRebuilder(const WCHAR * file) : PeParser(file, true)
+	ImportRebuilder( const WCHAR* file ) : PeParser( file, true )
 	{
-		pImportDescriptor = 0;
-		pThunkData = 0;
-		pImportByName = 0;
+		pImportDescriptor = nullptr;
+		pThunkData = nullptr;
+		pImportByName = nullptr;
 
 		numberOfImportDescriptors = 0;
 		sizeOfImportSection = 0;
@@ -25,11 +25,11 @@ public:
 		sizeOfJumpTable = 0;
 	}
 
-	bool rebuildImportTable(const WCHAR * newFilePath, std::map<DWORD_PTR, ImportModuleThunk> & moduleList);
-	void enableOFTSupport();
-	void enableNewIatInSection(DWORD_PTR iatAddress, DWORD iatSize);
+	bool rebuildImportTable( const WCHAR* newFilePath, std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	void enableOFTSupport( );
+	void enableNewIatInSection( DWORD_PTR iatAddress, DWORD iatSize );
 
-	IATReferenceScan * iatReferenceScan;
+	IATReferenceScan* iatReferenceScan;
 	bool BuildDirectImportsJumpTable;
 private:
 	PIMAGE_IMPORT_DESCRIPTOR pImportDescriptor;
@@ -46,29 +46,29 @@ private:
 	bool useOFT;
 	bool newIatInSection;
 	DWORD_PTR IatAddress;
-	
+
 	DWORD IatSize;
 
 	DWORD sizeOfJumpTable;
 
 	DWORD directImportsJumpTableRVA;
-	BYTE * JMPTableMemory;
+	BYTE* JMPTableMemory;
 	DWORD newIatBaseAddressRVA;
-	
 
-	DWORD fillImportSection(std::map<DWORD_PTR, ImportModuleThunk> & moduleList);
-	BYTE * getMemoryPointerFromRVA(DWORD_PTR dwRVA);
 
-	bool createNewImportSection(std::map<DWORD_PTR, ImportModuleThunk> & moduleList);
-	bool buildNewImportTable(std::map<DWORD_PTR, ImportModuleThunk> & moduleList);
-	void setFlagToIATSection(DWORD_PTR iatAddress);
-	size_t addImportToImportTable( ImportThunk * pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, DWORD sectionOffset);
-	size_t addImportDescriptor(ImportModuleThunk * pImportModule, DWORD sectionOffset, DWORD sectionOffsetOFTArray);
+	DWORD fillImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	BYTE* getMemoryPointerFromRVA( DWORD_PTR dwRVA );
 
-	void calculateImportSizes(std::map<DWORD_PTR, ImportModuleThunk> & moduleList);
+	bool createNewImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	bool buildNewImportTable( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	void setFlagToIATSection( DWORD_PTR iatAddress );
+	size_t addImportToImportTable( ImportThunk* pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, DWORD sectionOffset );
+	size_t addImportDescriptor( ImportModuleThunk* pImportModule, DWORD sectionOffset, DWORD sectionOffsetOFTArray );
 
-	void addSpecialImportDescriptor(DWORD_PTR rvaFirstThunk, DWORD sectionOffsetOFTArray);
-	void patchFileForNewIatLocation();
-	void changeIatBaseAddress( std::map<DWORD_PTR, ImportModuleThunk> & moduleList );
-	void patchFileForDirectImportJumpTable();
+	void calculateImportSizes( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+
+	void addSpecialImportDescriptor( DWORD_PTR rvaFirstThunk, DWORD sectionOffsetOFTArray );
+	void patchFileForNewIatLocation( );
+	void changeIatBaseAddress( std::map<DWORD_PTR, ImportModuleThunk>& moduleList ) const;
+	void patchFileForDirectImportJumpTable( );
 };
