@@ -1,9 +1,7 @@
 #pragma once
 #include <iostream>
 
-namespace forms
+namespace Interface
 {
-	void main( );
+	void Initialize( );
 }
-
-void gui_init( );

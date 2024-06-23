@@ -11,30 +11,30 @@
 
 static bool isFileExists( const std::wstring& strFilename )
 {
-	DWORD dwAttrib = GetFileAttributes( strFilename.c_str( ) );
+	std::uint32_t dwAttrib = GetFileAttributes( strFilename.c_str( ) );
 
 	return ( dwAttrib != INVALID_FILE_ATTRIBUTES && !( dwAttrib & FILE_ATTRIBUTE_DIRECTORY ) );
 }
 
-static 
+static
 std::wstring getCurrentDirectory( )
 {
-	WCHAR buffer[ MAX_PATH ] = { 0 };
+	wchar_t pBuffer[ MAX_PATH ] = { 0 };
 
-	GetCurrentDirectory( MAX_PATH, buffer );
+	GetCurrentDirectory( MAX_PATH, pBuffer );
 
-	return std::wstring( buffer );
+	return std::wstring( pBuffer );
 }
 
 ScyllaContext::ScyllaContext( const std::wstring& strProcessName )
 {
-	std::vector<Process>& vProcessList = processLister.getProcessListSnapshotNative( );
+	std::vector<Process>& vProcessList = m_processLister.getProcessListSnapshotNative( );
 
 	std::uint32_t uProcessId = 0;
 
 	for ( auto& vProcess : vProcessList )
 	{
-		if ( std::wstring( vProcess.filename ).find( strProcessName ) != std::wstring::npos )
+		if ( std::wstring( vProcess.pFileName ).find( strProcessName ) != std::wstring::npos )
 		{
 			uProcessId = vProcess.PID;
 			break;
@@ -53,32 +53,32 @@ ScyllaContext::~ScyllaContext( ) {}
 
 void ScyllaContext::getPePreInfo( )
 {
-	if ( strDumpFullFilePath.empty( ) && !ProcessAccessHelp::targetImageBase )
+	if ( m_strDumpFullFilePath.empty( ) && !ProcessAccessHelp::uTargetImageBase )
 		return;
 
-	PeParser* pPeFile = ( Config::USE_PE_HEADER_FROM_DISK && !strDumpFullFilePath.empty( ) ) ?
-		new PeParser( strTargetFilePath.c_str( ), false ) :
-		new PeParser( ProcessAccessHelp::targetImageBase, false );
+	PeParser* pPeFile = ( Config::USE_PE_HEADER_FROM_DISK && !m_strDumpFullFilePath.empty( ) ) ?
+		new PeParser( m_strTargetFilePath.c_str( ), false ) :
+		new PeParser( ProcessAccessHelp::uTargetImageBase, false );
 
-	m_entrypoint = pPeFile->getEntryPoint( ) + processPtr.imageBase;
+	m_entrypoint = pPeFile->getEntryPoint( ) + m_processPtr.uImageBase;
 
 	auto pDirImport = pPeFile->getDirectory( IMAGE_DIRECTORY_ENTRY_IAT );
 
 	if ( pDirImport )
 	{
-		DWORD_PTR addressIAT = pDirImport->VirtualAddress;
-		DWORD sizeIAT = pDirImport->Size;
+		std::uintptr_t uAddressIAT = pDirImport->VirtualAddress;
+		std::uint32_t uSizeIAT = pDirImport->Size;
 
-		if ( addressIAT && sizeIAT )
+		if ( uAddressIAT && uSizeIAT )
 		{
-			m_addressIAT = addressIAT + processPtr.imageBase;
-			m_sizeIAT = sizeIAT;
+			m_addressIAT = uAddressIAT + m_processPtr.uImageBase;
+			m_sizeIAT = uSizeIAT;
 		}
 	}
 
-	if ( !ProcessAccessHelp::targetSizeOfImage )
+	if ( !ProcessAccessHelp::uTargetSizeOfImage )
 	{
-		ProcessAccessHelp::targetSizeOfImage = pPeFile->getCurrentNtHeader( )->OptionalHeader.SizeOfImage;
+		ProcessAccessHelp::uTargetSizeOfImage = pPeFile->getCurrentNtHeader( )->OptionalHeader.SizeOfImage;
 	}
 }
 
@@ -90,20 +90,20 @@ int ScyllaContext::setProcessById( std::uint32_t uProcessId ) {
 		return SCY_ERROR_PIDNOTFOUND;
 	}
 
-	std::vector<Process>& vProcessList = processLister.getProcessListSnapshotNative( );
+	std::vector<Process>& vProcessList = m_processLister.getProcessListSnapshotNative( );
 
-	for ( auto & vProcess : vProcessList )
+	for ( auto& vProcess : vProcessList )
 	{
 		if ( vProcess.PID == uProcessId )
 		{
-			processPtr = vProcess;
+			m_processPtr = vProcess;
 			break;
 		}
 	}
 
 	vProcessList.clear( );
 
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 	{
 		Logs( "%s Process ID not found 2\n", __FUNCTION__ );
 		return SCY_ERROR_PIDNOTFOUND;
@@ -111,29 +111,29 @@ int ScyllaContext::setProcessById( std::uint32_t uProcessId ) {
 
 	ProcessAccessHelp::closeProcessHandle( );
 
-	apiReader.clearAll( );
+	m_apiReader.clearAll( );
 
-	if ( !ProcessAccessHelp::openProcessHandle( processPtr.PID ) )
+	if ( !ProcessAccessHelp::openProcessHandle( m_processPtr.PID ) )
 	{
 		Logs( "%s failed to open process\n", __FUNCTION__ );
 		return SCY_ERROR_PROCOPEN;
 	}
 
-	ProcessAccessHelp::targetImageBase = processPtr.imageBase;
+	ProcessAccessHelp::uTargetImageBase = m_processPtr.uImageBase;
 
-	ProcessAccessHelp::targetSizeOfImage = processPtr.imageSize;
+	ProcessAccessHelp::uTargetSizeOfImage = m_processPtr.uImageSize;
 
-	strTargetFilePath = processPtr.fullPath;
+	m_strTargetFilePath = m_processPtr.pModulePath;
 
 	getPePreInfo( );
 
-	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList );
+	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::vModuleList );
 
-	apiReader.readApisFromModuleList( );
+	m_apiReader.readApisFromModuleList( );
 
 	Logs( "%s Loading modules done.\n", __FUNCTION__ );
 
-	Logs( "%s Imagebase: " PRINTF_DWORD_PTR_FULL_S " Size: %08X\n", __FUNCTION__, processPtr.imageBase, processPtr.imageSize );
+	Logs( "%s Imagebase: " PRINTF_DWORD_PTR_FULL_S " Size: %08X\n", __FUNCTION__, m_processPtr.uImageBase, m_processPtr.uImageSize );
 
 	getCurrentDefaultDumpFilename( );
 
@@ -149,19 +149,19 @@ bool ScyllaContext::setTargetModule( const std::wstring& strModuleName ) {
 		return false;
 	}
 
-	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList );
+	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::vModuleList );
 
-	if ( ProcessAccessHelp::moduleList.empty( ) )
+	if ( ProcessAccessHelp::vModuleList.empty( ) )
 	{
 		Logs( "%s failed to list modules\n", __FUNCTION__ );
 		return false;
 	}
 
-	for ( auto& moduleInfo : ProcessAccessHelp::moduleList )
+	for ( auto& pModuleInfo : ProcessAccessHelp::vModuleList )
 	{
-		if ( std::wstring( moduleInfo.fullPath ).find( strModuleName ) != std::wstring::npos )
+		if ( std::wstring( pModuleInfo.pModulePath ).find( strModuleName ) != std::wstring::npos )
 		{
-			return setTargetModule( moduleInfo.modBaseAddr, moduleInfo.modBaseSize, moduleInfo.fullPath );
+			return setTargetModule( pModuleInfo.uModBase, pModuleInfo.uModBaseSize, pModuleInfo.pModulePath );
 		}
 	}
 
@@ -185,9 +185,9 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 
 	Logs( "%s setTargetModule %ls\n", __FUNCTION__, strModulePath.c_str( ) );
 
-	//processPtr.imageSize = (DWORD)ProcessAccessHelp::targetSizeOfImage;
+	//m_processPtr.uImageSize = (std::uint32_t)ProcessAccessHelp::uTargetSizeOfImage;
 
-	if ( ProcessAccessHelp::moduleList.empty( ) )
+	if ( ProcessAccessHelp::vModuleList.empty( ) )
 	{
 		Logs( "%s failed to list modules\n", __FUNCTION__ );
 		return false;
@@ -214,24 +214,24 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 
 	//m_entrypoint = uBaseModule + pNtHeaders->OptionalHeader.AddressOfEntryPoint;
 
-	if ( processPtr.imageBase != uBaseModule )
+	if ( m_processPtr.uImageBase != uBaseModule )
 	{
-		ProcessAccessHelp::targetImageBase = uBaseModule;
+		ProcessAccessHelp::uTargetImageBase = uBaseModule;
 
-		ProcessAccessHelp::targetSizeOfImage = uModuleSize ;
+		ProcessAccessHelp::uTargetSizeOfImage = uModuleSize ;
 
-		strTargetFilePath = strModulePath;
+		m_strTargetFilePath = strModulePath;
 
 		//if ( !strModulePath.empty( ) )
 		//{
 		//	std::memcpy(
-		//		ProcessAccessHelp::selectedModule->fullPath,
+		//		ProcessAccessHelp::selectedModule->pModulePath,
 		//		strModulePath.c_str( ),
-		//		min( strModulePath.size( ) * 2, sizeof( ProcessAccessHelp::selectedModule->fullPath ) ) );
+		//		min( strModulePath.size( ) * 2, sizeof( ProcessAccessHelp::selectedModule->pModulePath ) ) );
 		//}
 	}
 
-	//strTargetFilePath = ProcessAccessHelp::selectedModule->fullPath;
+	//m_strTargetFilePath = ProcessAccessHelp::selectedModule->pModulePath;
 
 	getPePreInfo( );
 
@@ -242,11 +242,11 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 	return true;
 }
 
-bool ScyllaContext::isIATOutsidePeImage( DWORD_PTR addressIAT ) const
+bool ScyllaContext::isIATOutsidePeImage( std::uintptr_t uAddressIAT ) const
 {
-	DWORD_PTR minAdd = ProcessAccessHelp::targetImageBase;
-	DWORD_PTR maxAdd = minAdd + ProcessAccessHelp::targetSizeOfImage;
-	return !( addressIAT > minAdd && addressIAT < maxAdd );
+	std::uintptr_t minAdd = ProcessAccessHelp::uTargetImageBase;
+	std::uintptr_t maxAdd = minAdd + ProcessAccessHelp::uTargetSizeOfImage;
+	return !( uAddressIAT > minAdd && uAddressIAT < maxAdd );
 }
 
 void ScyllaContext::checkSuspendProcess( )
@@ -259,7 +259,7 @@ void ScyllaContext::checkSuspendProcess( )
 		}
 		else
 		{
-			isProcessSuspended = true;
+			m_isProcessSuspended = true;
 			Logs( "%s Suspending process successful, please resume manually.\n", __FUNCTION__ );
 		}
 	}
@@ -267,33 +267,33 @@ void ScyllaContext::checkSuspendProcess( )
 
 bool ScyllaContext::getCurrentDefaultDumpFilename( )
 {
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return false;
 
-	if ( !isFileExists( strTargetFilePath ) )
+	if ( !isFileExists( m_strTargetFilePath ) )
 	{
 		auto currrentDir = getCurrentDirectory( );
 
-		strDumpFullFilePath = currrentDir + ( ( m_bIsModule ) ? L"\\dump.dll" : L"\\dump.exe" );
-		strDumpFullFilePathScy = currrentDir + ( ( m_bIsModule ) ? L"\\dump_SCY.dll" : L"\\dump_SCY.exe" );
+		m_strDumpFullFilePath = currrentDir + ( ( m_bIsModule ) ? L"\\dump.dll" : L"\\dump.exe" );
+		m_strDumpFullFilePathScy = currrentDir + ( ( m_bIsModule ) ? L"\\dump_SCY.dll" : L"\\dump_SCY.exe" );
 
 		return true;
 	}
 
-	auto lastSlashPos = strTargetFilePath.find_last_of( L'\\' );
+	auto lastSlashPos = m_strTargetFilePath.find_last_of( L'\\' );
 
 	if ( lastSlashPos != std::wstring::npos ) {
 
-		std::wstring filename = strTargetFilePath.substr( lastSlashPos + 1 );
+		std::wstring pFileName = m_strTargetFilePath.substr( lastSlashPos + 1 );
 
-		auto lastDotPos = filename.find_last_of( L'.' );
+		auto lastDotPos = pFileName.find_last_of( L'.' );
 
 		if ( lastDotPos != std::wstring::npos ) {
 
-			filename = strTargetFilePath.substr( 0, lastSlashPos +1 ) + filename.substr( 0, lastDotPos );
+			pFileName = m_strTargetFilePath.substr( 0, lastSlashPos + 1 ) + pFileName.substr( 0, lastDotPos );
 
-			strDumpFullFilePath = filename + ( ( m_bIsModule ) ? L"_dump.dll" : L"_dump.exe" );
-			strDumpFullFilePathScy = filename + ( ( m_bIsModule ) ? L"_dump_SCY.dll" : L"_dump_SCY.exe" );
+			m_strDumpFullFilePath = pFileName + ( ( m_bIsModule ) ? L"_dump.dll" : L"_dump.exe" );
+			m_strDumpFullFilePathScy = pFileName + ( ( m_bIsModule ) ? L"_dump_SCY.dll" : L"_dump_SCY.exe" );
 
 			return true;
 		}
@@ -304,10 +304,10 @@ bool ScyllaContext::getCurrentDefaultDumpFilename( )
 
 bool ScyllaContext::getCurrentModulePath( std::wstring& outModulePath ) const {
 
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return false;
 
-	outModulePath = strTargetFilePath;
+	outModulePath = m_strTargetFilePath;
 
 	if ( !isFileExists( outModulePath ) )
 	{
@@ -328,20 +328,20 @@ bool ScyllaContext::getCurrentModulePath( std::wstring& outModulePath ) const {
 
 void ScyllaContext::dumpActionHandler( )
 {
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return;
 
 	checkSuspendProcess( );
 
 	PeParser* pPeFile = ( Config::USE_PE_HEADER_FROM_DISK ) ?
-		new PeParser( strTargetFilePath.c_str( ), true ) :
-		new PeParser( ProcessAccessHelp::targetImageBase, true );
+		new PeParser( m_strTargetFilePath.c_str( ), true ) :
+		new PeParser( ProcessAccessHelp::uTargetImageBase, true );
 
 	if ( pPeFile->isValidPeFile( ) )
 	{
-		if ( pPeFile->dumpProcess( ProcessAccessHelp::targetImageBase, m_entrypoint, strDumpFullFilePath.c_str( ) ) )
+		if ( pPeFile->dumpProcess( ProcessAccessHelp::uTargetImageBase, m_entrypoint, m_strDumpFullFilePath.c_str( ) ) )
 		{
-			Logs( "%s Dump success %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+			Logs( "%s Dump success %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 		}
 		else
 		{
@@ -360,27 +360,27 @@ void ScyllaContext::dumpActionHandler( )
 
 void ScyllaContext::peRebuildActionHandler( )
 {
-	DWORD newSize = 0;
-	//WCHAR selectedFilePath[ MAX_PATH ];
+	std::uint32_t newSize = 0;
+	//wchar_t selectedFilePath[ MAX_PATH ];
 
 	//getCurrentModulePath( stringBuffer, _countof( stringBuffer ) );
 	//if ( showFileDialog( selectedFilePath, false, NULL, filterExeDll, NULL, stringBuffer ) )
 	{
 		if ( Config::CREATE_BACKUP )
 		{
-			if ( !ProcessAccessHelp::createBackupFile( strDumpFullFilePath.c_str( ) ) )
+			if ( !ProcessAccessHelp::createBackupFile( m_strDumpFullFilePath.c_str( ) ) )
 			{
-				Logs( "%s Creating backup file failed %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+				Logs( "%s Creating backup file failed %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 			}
 		}
 
-		DWORD fileSize = ProcessAccessHelp::getFileSize( strDumpFullFilePath.c_str( ) );
+		std::uint32_t uFileSize = ProcessAccessHelp::getFileSize( m_strDumpFullFilePath.c_str( ) );
 
-		PeParser peFile( strDumpFullFilePath.c_str( ), true );
+		PeParser peFile( m_strDumpFullFilePath.c_str( ), true );
 
 		if ( !peFile.isValidPeFile( ) )
 		{
-			Logs( "%s This is not a valid PE file %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+			Logs( "%s This is not a valid PE file %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 
 			MessageBox( 0, L"Not a valid PE file.", L"Failure", MB_ICONERROR );
 			return;
@@ -398,32 +398,32 @@ void ScyllaContext::peRebuildActionHandler( )
 			peFile.alignAllSectionHeaders( );
 			peFile.fixPeHeader( );
 
-			if ( peFile.savePeFileToDisk( strDumpFullFilePath.c_str( ) ) )
+			if ( peFile.savePeFileToDisk( m_strDumpFullFilePath.c_str( ) ) )
 			{
-				newSize = ProcessAccessHelp::getFileSize( strDumpFullFilePath.c_str( ) );
+				newSize = ProcessAccessHelp::getFileSize( m_strDumpFullFilePath.c_str( ) );
 
 				if ( Config::UPDATE_HEADER_CHECKSUM )
 				{
 					Logs( "%s Generating PE header checksum\n", __FUNCTION__ );
 
-					if ( !PeParser::updatePeHeaderChecksum( strDumpFullFilePath.c_str( ), newSize ) )
+					if ( !PeParser::updatePeHeaderChecksum( m_strDumpFullFilePath.c_str( ), newSize ) )
 					{
 						Logs( "%s Generating PE header checksum FAILED!\n", __FUNCTION__ );
 					}
 				}
 
-				Logs( "%s Rebuild success %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
-				Logs( "%s -> Old file size 0x%08X new file size 0x%08X (%d %%)\n", __FUNCTION__, fileSize, newSize, ( ( newSize * 100 ) / fileSize ) );
+				Logs( "%s Rebuild success %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
+				Logs( "%s -> Old file size 0x%08X new file size 0x%08X (%d %%)\n", __FUNCTION__, uFileSize, newSize, ( ( newSize * 100 ) / uFileSize ) );
 			}
 			else
 			{
-				Logs( "%s Rebuild failed, cannot save file %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+				Logs( "%s Rebuild failed, cannot save file %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 				MessageBox( 0, L"Rebuild failed. Cannot save file.", L"Failure", MB_ICONERROR );
 			}
 		}
 		else
 		{
-			Logs( "%s Rebuild failed, cannot read file %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+			Logs( "%s Rebuild failed, cannot read file %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 			MessageBox( 0, L"Rebuild failed. Cannot read file.", L"Failure", MB_ICONERROR );
 		}
 
@@ -432,14 +432,14 @@ void ScyllaContext::peRebuildActionHandler( )
 
 void ScyllaContext::dumpFixActionHandler( )
 {
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return;
 
-	ImportRebuilder importRebuild( strDumpFullFilePath.c_str( ) );
+	ImportRebuilder importRebuild( m_strDumpFullFilePath.c_str( ) );
 
 	if ( Config::IAT_FIX_AND_OEP_FIX )
 	{
-		importRebuild.setEntryPointRva( (DWORD)( m_entrypoint - ProcessAccessHelp::targetImageBase ) );
+		importRebuild.setEntryPointRva( (std::uint32_t)( m_entrypoint - ProcessAccessHelp::uTargetImageBase ) );
 	}
 
 	if ( Config::OriginalFirstThunk_SUPPORT )
@@ -449,55 +449,55 @@ void ScyllaContext::dumpFixActionHandler( )
 
 	if ( Config::SCAN_DIRECT_IMPORTS && Config::FIX_DIRECT_IMPORTS_UNIVERSAL )
 	{
-		if ( iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
+		if ( m_iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
 		{
-			importRebuild.iatReferenceScan = &iatReferenceScan;
-			importRebuild.BuildDirectImportsJumpTable = true;
+			importRebuild.pIatReferenceScan = &m_iatReferenceScan;
+			importRebuild.bBuildDirectImportsJumpTable = true;
 		}
 	}
 
 	if ( Config::CREATE_NEW_IAT_IN_SECTION )
 	{
-		importRebuild.iatReferenceScan = &iatReferenceScan;
+		importRebuild.pIatReferenceScan = &m_iatReferenceScan;
 
-		DWORD_PTR addressIAT = m_addressIAT;
-		DWORD sizeIAT = m_sizeIAT;
+		std::uintptr_t uAddressIAT = m_addressIAT;
+		std::uint32_t uSizeIAT = m_sizeIAT;
 
-		importRebuild.enableNewIatInSection( addressIAT, sizeIAT );
+		importRebuild.enableNewIatInSection( uAddressIAT, uSizeIAT );
 	}
 
 
-	if ( importRebuild.rebuildImportTable( this->strDumpFullFilePathScy.c_str( ), importsHandling.moduleList ) )
+	if ( importRebuild.rebuildImportTable( this->m_strDumpFullFilePathScy.c_str( ), m_importsHandling.vModuleList ) )
 	{
-		Logs( "%s Import Rebuild success %ls\n", __FUNCTION__, this->strDumpFullFilePathScy.c_str( ) );
+		Logs( "%s Import Rebuild success %ls\n", __FUNCTION__, this->m_strDumpFullFilePathScy.c_str( ) );
 	}
 	else
 	{
-		Logs( "%s Import Rebuild failed %ls\n", __FUNCTION__, strDumpFullFilePath.c_str( ) );
+		Logs( "%s Import Rebuild failed %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 		MessageBox( 0, L"Import Rebuild failed", L"Failure", MB_ICONERROR );
 	}
 
 }
 
-void ScyllaContext::setDialogIATAddressAndSize( DWORD_PTR addressIAT, DWORD sizeIAT )
+void ScyllaContext::setDialogIATAddressAndSize( std::uintptr_t uAddressIAT, std::uint32_t uSizeIAT )
 {
-	m_addressIAT = addressIAT;
-	m_sizeIAT = sizeIAT;
+	m_addressIAT = uAddressIAT;
+	m_sizeIAT = uSizeIAT;
 
-	WCHAR stringBuffer[ 256 ] = { 0 };
+	wchar_t stringBuffer[ 256 ] = { 0 };
 
-	swprintf_s( stringBuffer, L"IAT found:\r\n\r\nStart: " PRINTF_DWORD_PTR_FULL L"\r\nSize: 0x%04X (%d) ", addressIAT, sizeIAT, sizeIAT );
+	swprintf_s( stringBuffer, L"IAT found:\r\n\r\nStart: " PRINTF_DWORD_PTR_FULL L"\r\nSize: 0x%04X (%d) ", uAddressIAT, uSizeIAT, uSizeIAT );
 	MessageBox( 0, stringBuffer, L"IAT found", MB_ICONINFORMATION );
 }
 
 void ScyllaContext::iatAutosearchActionHandler( )
 {
-	DWORD_PTR searchAddress = m_entrypoint;
-	DWORD_PTR addressIAT = 0, addressIATAdv = 0;
-	DWORD sizeIAT = 0, sizeIATAdv = 0;
-	IATSearch iatSearch{ };
+	std::uintptr_t searchAddress = m_entrypoint;
+	std::uintptr_t uAddressIAT = 0, addressIATAdv = 0;
+	std::uint32_t uSizeIAT = 0, sizeIATAdv = 0;
+	IATSearch iatSearch { };
 
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return;
 
 	if ( searchAddress )
@@ -508,7 +508,7 @@ void ScyllaContext::iatAutosearchActionHandler( )
 			if ( iatSearch.searchImportAddressTableInProcess( searchAddress, &addressIATAdv, &sizeIATAdv, true ) )
 			{
 				Logs( "%s IAT Search Adv: IAT VA " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " Size 0x%04X (%d)\n", __FUNCTION__,
-					addressIATAdv, addressIATAdv - ProcessAccessHelp::targetImageBase, sizeIATAdv, sizeIATAdv );
+					addressIATAdv, addressIATAdv - ProcessAccessHelp::uTargetImageBase, sizeIATAdv, sizeIATAdv );
 			}
 			else
 			{
@@ -517,27 +517,27 @@ void ScyllaContext::iatAutosearchActionHandler( )
 		}
 
 
-		if ( iatSearch.searchImportAddressTableInProcess( searchAddress, &addressIAT, &sizeIAT, false ) )
+		if ( iatSearch.searchImportAddressTableInProcess( searchAddress, &uAddressIAT, &uSizeIAT, false ) )
 		{
 			Logs( "%s IAT Search Nor: IAT VA " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " Size 0x%04X (%d)\n", __FUNCTION__,
-				addressIAT, addressIAT - ProcessAccessHelp::targetImageBase, sizeIAT, sizeIAT );
+				uAddressIAT, uAddressIAT - ProcessAccessHelp::uTargetImageBase, uSizeIAT, uSizeIAT );
 		}
 		else
 		{
 			Logs( "%s IAT Search Nor: IAT not found at OEP " PRINTF_DWORD_PTR_FULL_S "!\n", __FUNCTION__, searchAddress );
 		}
 
-		if ( addressIAT != 0 && addressIATAdv == 0 )
+		if ( uAddressIAT != 0 && addressIATAdv == 0 )
 		{
-			setDialogIATAddressAndSize( addressIAT, sizeIAT );
+			setDialogIATAddressAndSize( uAddressIAT, uSizeIAT );
 		}
-		else if ( addressIAT == 0 && addressIATAdv != 0 )
+		else if ( uAddressIAT == 0 && addressIATAdv != 0 )
 		{
 			setDialogIATAddressAndSize( addressIATAdv, sizeIATAdv );
 		}
-		else if ( addressIAT != 0 && addressIATAdv != 0 )
+		else if ( uAddressIAT != 0 && addressIATAdv != 0 )
 		{
-			if ( addressIATAdv != addressIAT || sizeIAT != sizeIATAdv )
+			if ( addressIATAdv != uAddressIAT || uSizeIAT != sizeIATAdv )
 			{
 				int msgboxID = MessageBox( 0, L"Result of advanced and normal search is different. Do you want to use the IAT Search Advanced result?", L"Information", MB_YESNO | MB_ICONINFORMATION );
 				if ( msgboxID == IDYES )
@@ -546,12 +546,12 @@ void ScyllaContext::iatAutosearchActionHandler( )
 				}
 				else
 				{
-					setDialogIATAddressAndSize( addressIAT, sizeIAT );
+					setDialogIATAddressAndSize( uAddressIAT, uSizeIAT );
 				}
 			}
 			else
 			{
-				setDialogIATAddressAndSize( addressIAT, sizeIAT );
+				setDialogIATAddressAndSize( uAddressIAT, uSizeIAT );
 			}
 		}
 
@@ -561,45 +561,45 @@ void ScyllaContext::iatAutosearchActionHandler( )
 
 void ScyllaContext::getImportsActionHandler( )
 {
-	if ( !processPtr.PID )
+	if ( !m_processPtr.PID )
 		return;
 
 	if ( !m_addressIAT || !m_sizeIAT )
 		return;
 
-	apiReader.readAndParseIAT( m_addressIAT, m_sizeIAT, importsHandling.moduleList );
+	m_apiReader.readAndParseIAT( m_addressIAT, m_sizeIAT, m_importsHandling.vModuleList );
 
-	importsHandling.scanAndFixModuleList( );
+	m_importsHandling.scanAndFixModuleList( );
 
-	importsHandling.displayAllImports( );
+	m_importsHandling.displayAllImports( );
 
 
 	if ( Config::SCAN_DIRECT_IMPORTS )
 	{
-		iatReferenceScan.ScanForDirectImports = true;
-		iatReferenceScan.ScanForNormalImports = false;
-		iatReferenceScan.apiReader = &apiReader;
-		iatReferenceScan.startScan( ProcessAccessHelp::targetImageBase, (DWORD)ProcessAccessHelp::targetSizeOfImage, m_addressIAT, m_sizeIAT );
+		m_iatReferenceScan.ScanForDirectImports = true;
+		m_iatReferenceScan.ScanForNormalImports = false;
+		m_iatReferenceScan.apiReader = &m_apiReader;
+		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, (std::uint32_t)ProcessAccessHelp::uTargetSizeOfImage, m_addressIAT, m_sizeIAT );
 
-		Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, iatReferenceScan.numberOfFoundDirectImports( ), iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
+		Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, m_iatReferenceScan.numberOfFoundDirectImports( ), m_iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
 
-		if ( iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
+		if ( m_iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
 		{
-			if ( iatReferenceScan.numberOfDirectImportApisNotInIat( ) > 0 )
+			if ( m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) > 0 )
 			{
-				Logs( "%s DIRECT IMPORTS - Found %d additional api addresses!\n", __FUNCTION__, iatReferenceScan.numberOfDirectImportApisNotInIat( ) );
+				Logs( "%s DIRECT IMPORTS - Found %d additional api addresses!\n", __FUNCTION__, m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) );
 
-				DWORD sizeIatNew = iatReferenceScan.addAdditionalApisToList( );
+				std::uint32_t sizeIatNew = m_iatReferenceScan.addAdditionalApisToList( );
 
 				Logs( "%s DIRECT IMPORTS - Old IAT size 0x%08X new IAT size 0x%08X!\n", __FUNCTION__, m_sizeIAT, sizeIatNew );
 
 				m_sizeIAT = sizeIatNew;
 
-				importsHandling.scanAndFixModuleList( );
-				importsHandling.displayAllImports( );
+				m_importsHandling.scanAndFixModuleList( );
+				m_importsHandling.displayAllImports( );
 			}
 
-			iatReferenceScan.printDirectImportLog( );
+			m_iatReferenceScan.printDirectImportLog( );
 
 			if ( Config::FIX_DIRECT_IMPORTS_NORMAL && ( Config::FIX_DIRECT_IMPORTS_UNIVERSAL == false ) )
 			{
@@ -619,7 +619,7 @@ void ScyllaContext::getImportsActionHandler( )
 						isAfter = false;
 					}
 
-					iatReferenceScan.patchDirectImportsMemory( isAfter );
+					m_iatReferenceScan.patchDirectImportsMemory( isAfter );
 
 					Logs( "%s DIRECT IMPORTS - Patched! Please dump target.\n", __FUNCTION__ );
 				}
@@ -639,23 +639,23 @@ void ScyllaContext::getImportsActionHandler( )
 
 void ScyllaContext::setDefaultFolder( const std::wstring& strNewFolder ) {
 
-	if ( strDumpFullFilePath.empty( ) )
+	if ( m_strDumpFullFilePath.empty( ) )
 		return;
 
-	auto nPos = strDumpFullFilePath.find_last_of( L'\\' );
+	auto nPos = m_strDumpFullFilePath.find_last_of( L'\\' );
 
 	if ( nPos == std::wstring::npos )
 		return;
 
-	auto filename = strDumpFullFilePath.substr( nPos + 1 );
-	auto filenameScy = strDumpFullFilePathScy.substr( nPos + 1 );
+	auto pFileName = m_strDumpFullFilePath.substr( nPos + 1 );
+	auto filenameScy = m_strDumpFullFilePathScy.substr( nPos + 1 );
 
-	strDumpFullFilePath = strNewFolder + L"\\" + filename;
-	strDumpFullFilePathScy = strNewFolder + L"\\" + filenameScy;
+	m_strDumpFullFilePath = strNewFolder + L"\\" + pFileName;
+	m_strDumpFullFilePathScy = strNewFolder + L"\\" + filenameScy;
 }
 
 
-ImportsHandling* ScyllaContext::getImportsHandling( ) 
-{ 
-	return &importsHandling; 
+ImportsHandling* ScyllaContext::getImportsHandling( )
+{
+	return &m_importsHandling;
 }

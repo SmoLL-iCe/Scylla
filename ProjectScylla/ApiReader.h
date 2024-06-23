@@ -7,72 +7,74 @@
 #include "Thunks.h"
 #include <unordered_map>
 
-typedef std::pair<DWORD_PTR, ApiInfo*> API_Pair;
+typedef std::pair<std::uintptr_t, ApiInfo*> API_Pair;
 
 class ApiReader : public ProcessAccessHelp
 {
 public:
-	static stdext::hash_multimap<DWORD_PTR, ApiInfo*> apiList; //api look up table
+	static stdext::hash_multimap<std::uintptr_t, ApiInfo*> mpApiList; //api look up table
 
-	static std::map<DWORD_PTR, ImportModuleThunk>* moduleThunkList; //store found apis
+	static std::map<std::uintptr_t, ImportModuleThunk>* mpModuleThunkList; //store found apis
 
-	static DWORD_PTR minApiAddress;
-	static DWORD_PTR maxApiAddress;
+	static std::uintptr_t uMinApiAddress;
+	static std::uintptr_t uMaxApiAddress;
 
 	/*
 	 * Read all APIs from target process
 	 */
 	void readApisFromModuleList( );
 
-	bool isApiAddressValid( DWORD_PTR virtualAddress );
-	ApiInfo* getApiByVirtualAddress( DWORD_PTR virtualAddress, bool* isSuspect );
-	void readAndParseIAT( DWORD_PTR addressIAT, DWORD sizeIAT, std::map<DWORD_PTR, ImportModuleThunk>& moduleListNew );
-	void addFoundApiToModuleList( DWORD_PTR iatAddress, ApiInfo* apiFound, bool isNewModule, bool isSuspect );
+	bool isApiAddressValid( std::uintptr_t uVirtualAddress );
+	ApiInfo* getApiByVirtualAddress( std::uintptr_t uVirtualAddress, bool* pIsSuspect );
+	void readAndParseIAT( std::uintptr_t uAddressIAT, std::uint32_t uSizeIAT, std::map<std::uintptr_t, ImportModuleThunk>& mpModuleListNew );
+	void addFoundApiToModuleList( std::uintptr_t uIATAddress, ApiInfo* pApiFound, bool isNewModule, bool isSuspect );
 	void clearAll( );
-	bool isInvalidMemoryForIat( DWORD_PTR address );
+	bool isInvalidMemoryForIat( std::uintptr_t uAddress );
 private:
 
-	ImportModuleThunk* findModuleForRVA( DWORD_PTR rva, bool addUnknownModuleIfNeeded = false );
+	ImportModuleThunk* findModuleForRVA( std::uintptr_t RVA, bool addUnknownModuleIfNeeded = false );
 	bool readExportTableAlwaysFromDisk;
-	void parseIAT( DWORD_PTR addressIAT, BYTE* iatBuffer, SIZE_T size );
+	void parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, std::size_t szSize );
 
-	void addApi( const char* functionName, WORD hint, WORD ordinal, DWORD_PTR va, DWORD_PTR rva, bool isForwarded, ModuleInfo* moduleInfo );
-	void addApiWithoutName( WORD ordinal, DWORD_PTR va, DWORD_PTR rva, bool isForwarded, ModuleInfo* moduleInfo );
-	inline bool isApiForwarded( DWORD_PTR rva, PIMAGE_NT_HEADERS pNtHeader );
-	void handleForwardedApi( DWORD_PTR vaStringPointer, const char* functionNameParent, DWORD_PTR rvaParent, WORD ordinalParent, ModuleInfo* moduleParent );
+	void addApi( const char* pFuncName, std::uint16_t uHint, std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo );
+	void addApiWithoutName( std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo );
+	inline bool isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader );
+	void handleForwardedApi( std::uintptr_t uVaStringPointer, const char* pFuncNameParent, std::uintptr_t uRvaParent, std::uint16_t uOrdinalParent, ModuleInfo* pModuleParent );
 	void parseModule( ModuleInfo* pModule );
 	void parseModuleWithProcess( ModuleInfo* pModule );
 
-	void parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress );
+	void parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress );
 
-	ModuleInfo* findModuleByName( const WCHAR* name );
+	ModuleInfo* findModuleByName( const wchar_t* pName );
 
-	void findApiByModuleAndOrdinal( ModuleInfo* pModule, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	void findApiByModuleAndName( ModuleInfo* pModule, const char* searchFunctionName, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	void findApiByModule( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiByModuleAndOrdinal( ModuleInfo* pModule, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
+	void findApiByModuleAndName( ModuleInfo* pModule, const char* pSearchFunctionName, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
+	void findApiByModule( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
 
 	bool isModuleLoadedInOwnProcess( ModuleInfo* pModule );
 	void parseModuleWithOwnProcess( ModuleInfo* pModule );
 	bool isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader );
-	void findApiInProcess( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
-	bool findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi );
+	void findApiInProcess( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
+	bool findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
 
-	std::unique_ptr<BYTE[ ]> getHeaderFromProcess( ModuleInfo* pModule );
-	std::unique_ptr<BYTE[ ]> getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader );
+	std::unique_ptr<std::uint8_t[ ]> getHeaderFromProcess( ModuleInfo* pModule );
+	std::unique_ptr<std::uint8_t[ ]> getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader );
 
 	void setModulePriority( ModuleInfo* pModule );
-	void setMinMaxApiAddress( DWORD_PTR virtualAddress );
+	void setMinMaxApiAddress( std::uintptr_t uVirtualAddress );
 
-	void parseModuleWithMapping( ModuleInfo* moduleInfo ); //not used
+	void parseModuleWithMapping( ModuleInfo* pModuleInfo ); //not used
 
-	bool addModuleToModuleList( const WCHAR* moduleName, DWORD_PTR firstThunk );
-	bool addFunctionToModuleList( ApiInfo* apiFound, DWORD_PTR va, DWORD_PTR rva, WORD ordinal, bool valid, bool suspect );
-	bool addNotFoundApiToModuleList( DWORD_PTR iatAddressVA, DWORD_PTR apiAddress );
+	bool addModuleToModuleList( const wchar_t* pModuleName, std::uintptr_t uFirstThunk );
+	bool addFunctionToModuleList( ApiInfo* pApiFound, std::uintptr_t VA, std::uintptr_t RVA, std::uint16_t uOrdinal, bool valid, bool suspect );
+	bool addNotFoundApiToModuleList( std::uintptr_t uIatAddressVA, std::uintptr_t uApiAddress );
 
-	void addUnknownModuleToModuleList( DWORD_PTR firstThunk );
-	bool isApiBlacklisted( const char* functionName );
+	void addUnknownModuleToModuleList( std::uintptr_t uFirstThunk );
+	bool isApiBlacklisted( const char* pFuncName );
 	bool isWinSxSModule( ModuleInfo* pModule );
 
-	ApiInfo* getScoredApi( stdext::hash_map<DWORD_PTR, ApiInfo*>::iterator it1, size_t countDuplicates, bool hasName, bool hasUnicodeAnsiName, bool hasNoUnderlineInName, bool hasPrioDll, bool hasPrio0Dll, bool hasPrio1Dll, bool hasPrio2Dll, bool firstWin );
+	ApiInfo* getScoredApi( stdext::hash_map<std::uintptr_t, ApiInfo*>::iterator it1, std::size_t szCountDuplicates,
+		bool bHasName, bool bHasUnicodeAnsiName,
+		bool bHasNoUnderlineInName, bool bHasPrioDll, bool bHasPrio0Dll, bool bHasPrio1Dll, bool bHasPrio2Dll, bool bFirstWin );
 
 };

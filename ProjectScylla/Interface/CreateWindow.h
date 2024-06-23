@@ -8,62 +8,62 @@
 #include <functional>
 #include <thread>
 
-class gl_window;
+class glWindow;
 
-using t_frame =  std::function<void( gl_window* )>;
+using tFrame =  std::function<void( glWindow* )>;
 
-class gl_window
+class glWindow
 {
 private:
 
-	std::thread me_thread {};
+	std::thread m_thread {};
 
-	bool b_goodbye = false;
+	bool m_bGoodbye = false;
 
-	const char* caption = nullptr;
+	const char* m_pCaption = nullptr;
 
-	int status = 0;
+	int m_nStatus = 0;
 
-	GLFWwindow* window = nullptr;
+	GLFWwindow* m_pWindow = nullptr;
 
-	t_frame  frame_controls = {};
+	tFrame  m_CallbackFrameControls = {};
 
-	bool me_close = false;
+	bool m_bMeClose = false;
 
-	static void run_thead( gl_window* inst );
+	static void runThread( glWindow* inst );
 
-	std::vector<ImFont*> fonts {};
+	std::vector<ImFont*> m_vFonts {};
 
 public:
 
-	static gl_window* i( );
+	static glWindow* i( );
 
 
-	float f_top = 0;
+	float m_fTop = 0;
 
-	float f_left = 0;
+	float m_fLeft = 0;
 
-	int width = 0;
+	int m_nWidth = 0;
 
-	int height;
+	int m_nHeight;
 
 	void create( );
 
-	bool show_window = true;
+	bool m_bShowWindow = true;
 
 	void routine( );
 
-	gl_window( const char* w_caption, int w_width, int w_height );
+	glWindow( const char* pCaption, int nWidth, int nHeight );
 
-	void set_frame_controls( t_frame f_controls );
+	void setFrameControls( tFrame funcControls );
 
-	void set_size( int w_width, int w_height );
+	void setSize( int nWidth, int nHeight );
 
-	ImVec2 get_size( ) const;
+	ImVec2 getSize( ) const;
 
-	void set_frame_pos( float w_left, float w_top );
+	void setFramePos( float fLeft, float fTop );
 
-	ImVec2 get_frame_pos( ) const;
+	ImVec2 getFramePos( ) const;
 
 	void center( ) const;
 
@@ -71,5 +71,5 @@ public:
 
 	void goodbye( );
 
-	std::vector<ImFont*> get_fonts( ) const;
+	std::vector<ImFont*> getFontsList( ) const;
 };

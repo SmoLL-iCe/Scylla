@@ -3,40 +3,40 @@
 
 OPERATING_SYSTEM SystemInformation::currenOS = UNKNOWN_OS;
 
-bool SystemInformation::getSystemInformation()
+bool SystemInformation::getSystemInformation( )
 {
-	OSVERSIONINFOEX osvi = {0};
-	SYSTEM_INFO si = {0};
+	OSVERSIONINFOEX osvi = { 0 };
+	SYSTEM_INFO si = { 0 };
 	def_GetNativeSystemInfo _GetNativeSystemInfo = 0;
 
-	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	osvi.dwOSVersionInfoSize = sizeof( OSVERSIONINFOEX );
 
 	bool isWindows7OrGreater = IsWindows7OrGreater( );
 
-	BOOL (WINAPI *pGetVersionEx)(LPOSVERSIONINFO) = (BOOL (WINAPI *)(LPOSVERSIONINFO)) GetProcAddress(
-			GetModuleHandle(L"kernel32.dll"),
-			"GetVersionExA"
-		);
+	BOOL ( WINAPI * pGetVersionEx )( LPOSVERSIONINFO ) = ( BOOL ( WINAPI* )( LPOSVERSIONINFO ) ) GetProcAddress(
+		GetModuleHandle( L"kernel32.dll" ),
+		"GetVersionExA"
+	);
 
 
-	if (!pGetVersionEx((OSVERSIONINFO*) &osvi))
+	if ( !pGetVersionEx( (OSVERSIONINFO*)&osvi ) )
 	{
 		return false;
 	}
 
-	if ((osvi.dwMajorVersion < 5) || ((osvi.dwMajorVersion == 5) && (osvi.dwMinorVersion == 0)))
+	if ( ( osvi.dwMajorVersion < 5 ) || ( ( osvi.dwMajorVersion == 5 ) && ( osvi.dwMinorVersion == 0 ) ) )
 	{
 		return false;
 	}
 
-	_GetNativeSystemInfo = (def_GetNativeSystemInfo)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "GetNativeSystemInfo");
-	if (_GetNativeSystemInfo)
+	_GetNativeSystemInfo = (def_GetNativeSystemInfo)GetProcAddress( GetModuleHandle( L"kernel32.dll" ), "GetNativeSystemInfo" );
+	if ( _GetNativeSystemInfo )
 	{
-		_GetNativeSystemInfo(&si);
+		_GetNativeSystemInfo( &si );
 	}
 	else
 	{
-		GetSystemInfo(&si);
+		GetSystemInfo( &si );
 	}
 
 	bool isX64 = si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64;
@@ -45,35 +45,35 @@ bool SystemInformation::getSystemInformation()
 	DWORD major = osvi.dwMajorVersion;
 	DWORD minor = osvi.dwMinorVersion;
 
-	if(isX64 && major == 5 && minor == 2)
+	if ( isX64 && major == 5 && minor == 2 )
 	{
 		currenOS = WIN_XP_64;
 	}
-	else if(isX86 && major == 5 && minor == 1)
+	else if ( isX86 && major == 5 && minor == 1 )
 	{
 		currenOS = WIN_XP_32;
 	}
-	else if(isX64 && major == 6 && minor == 0)
+	else if ( isX64 && major == 6 && minor == 0 )
 	{
 		currenOS = WIN_VISTA_64;
 	}
-	else if(isX86 && major == 6 && minor == 0)
+	else if ( isX86 && major == 6 && minor == 0 )
 	{
 		currenOS = WIN_VISTA_32;
 	}
-	else if(isX64 && major == 6 && minor == 1)
+	else if ( isX64 && major == 6 && minor == 1 )
 	{
 		currenOS = WIN_7_64;
 	}
-	else if(isX86 && major == 6 && minor == 1)
+	else if ( isX86 && major == 6 && minor == 1 )
 	{
 		currenOS = WIN_7_32;
 	}
-	else if(isX64 && major == 6 && minor == 2)
+	else if ( isX64 && major == 6 && minor == 2 )
 	{
 		currenOS = WIN_8_64;
 	}
-	else if(isX86 && major == 6 && minor == 2)
+	else if ( isX86 && major == 6 && minor == 2 )
 	{
 		currenOS = WIN_8_32;
 	}
@@ -82,5 +82,5 @@ bool SystemInformation::getSystemInformation()
 		currenOS = UNKNOWN_OS;
 	}
 
-	return (currenOS != UNKNOWN_OS);
+	return ( currenOS != UNKNOWN_OS );
 }

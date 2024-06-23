@@ -2,21 +2,22 @@
 
 #include <windows.h>
 #include <map>
+#include <cstdint>
 
 class ImportThunk
 {
 public:
-	WCHAR moduleName[ MAX_PATH ];
+	wchar_t pModuleName[ MAX_PATH ];
 	char name[ MAX_PATH ];
-	DWORD_PTR va;
-	DWORD_PTR rva;
-	WORD ordinal;
-	DWORD_PTR apiAddressVA;
-	WORD hint;
-	bool valid;
-	bool suspect;
+	std::uintptr_t uVA;
+	std::uintptr_t uRVA;
+	std::uint16_t uOrdinal;
+	std::uintptr_t uApiAddressVA;
+	std::uint16_t uHint;
+	bool bValid;
+	bool bSuspect;
 
-	DWORD_PTR key;
+	std::uintptr_t uKey;
 
 	void invalidate( );
 };
@@ -24,13 +25,13 @@ public:
 class ImportModuleThunk
 {
 public:
-	WCHAR moduleName[ MAX_PATH ];
-	std::map<DWORD_PTR, ImportThunk> thunkList;
+	wchar_t pModuleName[ MAX_PATH ];
+	std::map<std::uintptr_t, ImportThunk> mpThunkList;
 
-	DWORD_PTR firstThunk;
+	std::uintptr_t uFirstThunk;
 
-	DWORD_PTR key;
+	std::uintptr_t uKey;
 
-	DWORD_PTR getFirstThunk( ) const;
+	std::uintptr_t getFirstThunk( ) const;
 	bool isValid( ) const;
 };

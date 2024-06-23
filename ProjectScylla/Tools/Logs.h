@@ -4,8 +4,8 @@
 
 namespace nlog
 {
-	bool Init( ); 
-	void SetConsoleColor( WORD color );
+	bool Init( );
+	void SetConsoleColor( std::uint16_t color );
 	bool Send( const char* szFormat, ... );
 }
 

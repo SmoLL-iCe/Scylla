@@ -17,7 +17,7 @@ void DeviceNameResolver::initDeviceNameList( )
 {
     TCHAR shortName[ 3 ] = { 0 };
     TCHAR longName[ MAX_PATH ] = { 0 };
-    HardDisk hardDisk;
+    HardDisk hardDisk { };
 
     shortName[ 1 ] = TEXT( ':' );
 
@@ -44,7 +44,7 @@ void DeviceNameResolver::initDeviceNameList( )
 
 bool DeviceNameResolver::resolveDeviceLongNameToShort( const TCHAR* sourcePath, TCHAR* targetPath )
 {
-    for ( unsigned int i = 0; i < deviceNameList.size( ); i++ )
+    for ( std::uint32_t i = 0; i < deviceNameList.size( ); i++ )
     {
         if ( !_tcsnicmp( deviceNameList[ i ].longName, sourcePath, deviceNameList[ i ].longNameLength ) && sourcePath[ deviceNameList[ i ].longNameLength ] == TEXT( '\\' ) )
         {
@@ -59,15 +59,15 @@ bool DeviceNameResolver::resolveDeviceLongNameToShort( const TCHAR* sourcePath, 
 
 void DeviceNameResolver::fixVirtualDevices( )
 {
-    const USHORT BufferSize = MAX_PATH * 2 * sizeof( WCHAR );
-    WCHAR longCopy[ MAX_PATH ] = { 0 };
+    const USHORT BufferSize = MAX_PATH * 2 * sizeof( wchar_t );
+    wchar_t longCopy[ MAX_PATH ] = { 0 };
     OBJECT_ATTRIBUTES oa = { 0 };
     UNICODE_STRING unicodeInput = { 0 };
     UNICODE_STRING unicodeOutput = { 0 };
     HANDLE hFile = 0;
     ULONG retLen = 0;
 
-    auto unicodeOutputBuffer = std::make_unique<WCHAR[ ]>( BufferSize / sizeof( WCHAR ) );
+    auto unicodeOutputBuffer = std::make_unique<wchar_t[ ]>( BufferSize / sizeof( wchar_t ) );
     if ( !unicodeOutputBuffer )
         return;
 
@@ -88,7 +88,7 @@ void DeviceNameResolver::fixVirtualDevices( )
 
             if ( NT_SUCCESS( NtQuerySymbolicLinkObject( hFile, &unicodeOutput, &retLen ) ) )
             {
-                HardDisk hardDisk{};
+                HardDisk hardDisk {};
 
                 hardDisk.longNameLength = wcslen( unicodeOutput.Buffer );
 

@@ -10,29 +10,28 @@
 
 HANDLE ProcessAccessHelp::hProcess = 0;
 
-//ModuleInfo* ProcessAccessHelp::selectedModule;
-DWORD_PTR ProcessAccessHelp::targetImageBase = 0;
-DWORD_PTR ProcessAccessHelp::targetSizeOfImage = 0;
-DWORD_PTR ProcessAccessHelp::maxValidAddress = 0;
+std::uintptr_t ProcessAccessHelp::uTargetImageBase = 0;
+std::uintptr_t ProcessAccessHelp::uTargetSizeOfImage = 0;
+std::uintptr_t ProcessAccessHelp::uMaxValidAddress = 0;
 
-std::vector<ModuleInfo> ProcessAccessHelp::moduleList; //target process module list
-std::vector<ModuleInfo> ProcessAccessHelp::ownModuleList; //own module list
+std::vector<ModuleInfo> ProcessAccessHelp::vModuleList; //target process pModule list
+std::vector<ModuleInfo> ProcessAccessHelp::vOwnModuleList; //own pModule list
 
 
 _DInst ProcessAccessHelp::decomposerResult[ MAX_INSTRUCTIONS ];
-unsigned int ProcessAccessHelp::decomposerInstructionsCount = 0;
+std::uint32_t ProcessAccessHelp::uDecomposerInstructionsCount = 0;
 _CodeInfo ProcessAccessHelp::decomposerCi = { 0 };
 
 _DecodedInst  ProcessAccessHelp::decodedInstructions[ MAX_INSTRUCTIONS ];
-unsigned int  ProcessAccessHelp::decodedInstructionsCount = 0;
+std::uint32_t  ProcessAccessHelp::decodedInstructionsCount = 0;
 
-BYTE ProcessAccessHelp::fileHeaderFromDisk[ PE_HEADER_BYTES_COUNT ];
+std::uint8_t ProcessAccessHelp::fileHeaderFromDisk[ PE_HEADER_BYTES_COUNT ];
 
-bool ProcessAccessHelp::openProcessHandle( DWORD dwPID )
+bool ProcessAccessHelp::openProcessHandle( std::uint32_t uPID )
 {
-	if ( !dwPID )
+	if ( !uPID )
 	{
-		LOGS_DEBUG( "openProcessHandle :: Wrong PID, PID %X", dwPID );
+		LOGS_DEBUG( "openProcessHandle :: Wrong PID, PID %X", uPID );
 
 		return false;
 	}
@@ -44,17 +43,17 @@ bool ProcessAccessHelp::openProcessHandle( DWORD dwPID )
 		return false;
 	}
 
-	hProcess = ApiTools::OpenProcess( PROCESS_CREATE_THREAD 
-		| PROCESS_VM_OPERATION 
-		| PROCESS_QUERY_INFORMATION 
-		| PROCESS_VM_READ 
-		| PROCESS_VM_WRITE 
-		| PROCESS_SUSPEND_RESUME 
-		| PROCESS_TERMINATE, FALSE, dwPID );
+	hProcess = ApiTools::OpenProcess( PROCESS_CREATE_THREAD
+		| PROCESS_VM_OPERATION
+		| PROCESS_QUERY_INFORMATION
+		| PROCESS_VM_READ
+		| PROCESS_VM_WRITE
+		| PROCESS_SUSPEND_RESUME
+		| PROCESS_TERMINATE, FALSE, uPID );
 
 	if ( !hProcess || hProcess == INVALID_HANDLE_VALUE )
 	{
-		LOGS_DEBUG( "openProcessHandle :: Failed to open handle, PID %X", dwPID );
+		LOGS_DEBUG( "openProcessHandle :: Failed to open handle, PID %X", uPID );
 
 		hProcess = nullptr;
 	}
@@ -71,64 +70,64 @@ void ProcessAccessHelp::closeProcessHandle( )
 		hProcess = nullptr;
 	}
 
-	moduleList.clear( );
+	vModuleList.clear( );
 
-	targetImageBase = 0;
+	uTargetImageBase = 0;
 
 	//selectedModule = nullptr;
 }
 
-bool ProcessAccessHelp::readMemoryPartlyFromProcess( DWORD_PTR address, SIZE_T size, LPVOID dataBuffer )
+bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
 {
-	DWORD_PTR addressPart = 0;
-	DWORD_PTR readBytes = 0;
-	DWORD_PTR bytesToRead = 0;
+	std::uintptr_t addressPart = 0;
+	std::uintptr_t readBytes = 0;
+	std::uintptr_t bytesToRead = 0;
 
 	if ( !hProcess ) {
 		LOGS_DEBUG( "readMemoryPartlyFromProcess :: hProcess == nullptr" );
 		return false;
 	}
 
-	if ( readMemoryFromProcess( address, size, dataBuffer ) )
+	if ( readMemoryFromProcess( uAddress, szSize, pDataBuffer ) )
 		return true;
 
-	addressPart = address;
+	addressPart = uAddress;
 
 	MEMORY_BASIC_INFORMATION memBasic = { 0 };
 
 	do {
 		if ( !ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( addressPart ), &memBasic, sizeof( memBasic ) ) ) {
-			LOGS_DEBUG( "readMemoryPartlyFromProcess :: Error VirtualQueryEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", addressPart, size, GetLastError( ) );
+			LOGS_DEBUG( "readMemoryPartlyFromProcess :: Error VirtualQueryEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", addressPart, szSize, GetLastError( ) );
 			break;
 		}
 
 		bytesToRead = memBasic.RegionSize;
 
-		if ( ( readBytes + bytesToRead ) > size ) {
-			bytesToRead = size - readBytes;
+		if ( ( readBytes + bytesToRead ) > szSize ) {
+			bytesToRead = szSize - readBytes;
 		}
 
 		if ( memBasic.State == MEM_COMMIT && memBasic.Protect != PAGE_NOACCESS ) {
-			if ( !readMemoryFromProcess( addressPart, bytesToRead, reinterpret_cast<LPVOID>( reinterpret_cast<DWORD_PTR>( dataBuffer ) + readBytes ) ) ) {
+			if ( !readMemoryFromProcess( addressPart, bytesToRead, reinterpret_cast<LPVOID>( reinterpret_cast<std::uintptr_t>( pDataBuffer ) + readBytes ) ) ) {
 				break;
 			}
 		}
 		else {
-			ZeroMemory( reinterpret_cast<LPVOID>( reinterpret_cast<DWORD_PTR>( dataBuffer ) + readBytes ), bytesToRead );
+			ZeroMemory( reinterpret_cast<LPVOID>( reinterpret_cast<std::uintptr_t>( pDataBuffer ) + readBytes ), bytesToRead );
 		}
 
 		readBytes += bytesToRead;
 
 		addressPart += memBasic.RegionSize;
 
-	} while ( readBytes < size );
+	} while ( readBytes < szSize );
 
-	return ( readBytes == size );
+	return ( readBytes == szSize );
 }
 
-bool ProcessAccessHelp::writeMemoryToProcess( DWORD_PTR address, SIZE_T size, LPVOID dataBuffer )
+bool ProcessAccessHelp::writeMemoryToProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
 {
-	SIZE_T lpNumberOfBytesWritten = 0;
+	std::size_t lpNumberOfBytesWritten = 0;
 
 	if ( !hProcess )
 	{
@@ -137,12 +136,12 @@ bool ProcessAccessHelp::writeMemoryToProcess( DWORD_PTR address, SIZE_T size, LP
 		return false;
 	}
 
-	return ( ApiTools::WriteProcessMemory( hProcess, (LPVOID)address, dataBuffer, size, &lpNumberOfBytesWritten ) != FALSE );
+	return ( ApiTools::WriteProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesWritten ) != FALSE );
 }
 
-bool ProcessAccessHelp::readMemoryFromProcess( DWORD_PTR address, SIZE_T size, LPVOID dataBuffer )
+bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
 {
-	SIZE_T lpNumberOfBytesRead = 0;
+	std::size_t lpNumberOfBytesRead = 0;
 	DWORD dwProtect = 0;
 	bool returnValue = false;
 
@@ -152,23 +151,23 @@ bool ProcessAccessHelp::readMemoryFromProcess( DWORD_PTR address, SIZE_T size, L
 		return false;
 	}
 
-	if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( address ), dataBuffer, size, &lpNumberOfBytesRead ) )
+	if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesRead ) )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", address, size, GetLastError( ) );
+		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 
-		if ( !ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( address ), size, PAGE_READONLY, &dwProtect ) )
+		if ( !ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, PAGE_READONLY, &dwProtect ) )
 		{
-			LOGS_DEBUG( "readMemoryFromProcess :: Error VirtualProtectEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", address, size, GetLastError( ) );
+			LOGS_DEBUG( "readMemoryFromProcess :: Error VirtualProtectEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 			return false;
 		}
 		else
 		{
-			if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( address ), dataBuffer, size, &lpNumberOfBytesRead ) )
+			if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesRead ) )
 			{
-				LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", address, size, GetLastError( ) );
+				LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 				return false;
 			}
-			ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( address ), size, dwProtect, &dwProtect );
+			ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, dwProtect, &dwProtect );
 		}
 	}
 	else
@@ -176,9 +175,9 @@ bool ProcessAccessHelp::readMemoryFromProcess( DWORD_PTR address, SIZE_T size, L
 		returnValue = true;
 	}
 
-	if ( returnValue && size != lpNumberOfBytesRead )
+	if ( returnValue && szSize != lpNumberOfBytesRead )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", lpNumberOfBytesRead, size );
+		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", lpNumberOfBytesRead, szSize );
 		return false;
 	}
 
@@ -186,17 +185,17 @@ bool ProcessAccessHelp::readMemoryFromProcess( DWORD_PTR address, SIZE_T size, L
 }
 
 
-bool ProcessAccessHelp::decomposeMemory( BYTE* dataBuffer, SIZE_T bufferSize, DWORD_PTR startAddress )
+bool ProcessAccessHelp::decomposeMemory( std::uint8_t* pDataBuffer, std::size_t bufferSize, std::uintptr_t uStartAddress )
 {
 	ZeroMemory( &decomposerCi, sizeof( _CodeInfo ) );
-	decomposerCi.code = dataBuffer;
+	decomposerCi.code = pDataBuffer;
 	decomposerCi.codeLen = (int)bufferSize;
 	decomposerCi.dt = dt;
-	decomposerCi.codeOffset = startAddress;
+	decomposerCi.codeOffset = uStartAddress;
 
-	decomposerInstructionsCount = 0;
+	uDecomposerInstructionsCount = 0;
 
-	if ( distorm_decompose( &decomposerCi, decomposerResult, sizeof( decomposerResult ) / sizeof( decomposerResult[ 0 ] ), &decomposerInstructionsCount ) == DECRES_INPUTERR )
+	if ( distorm_decompose( &decomposerCi, decomposerResult, sizeof( decomposerResult ) / sizeof( decomposerResult[ 0 ] ), &uDecomposerInstructionsCount ) == DECRES_INPUTERR )
 	{
 		LOGS_DEBUG( "decomposeMemory :: distorm_decompose == DECRES_INPUTERR" );
 
@@ -206,7 +205,7 @@ bool ProcessAccessHelp::decomposeMemory( BYTE* dataBuffer, SIZE_T bufferSize, DW
 	return true;
 }
 
-bool ProcessAccessHelp::disassembleMemory( BYTE* dataBuffer, SIZE_T bufferSize, DWORD_PTR startOffset )
+bool ProcessAccessHelp::disassembleMemory( std::uint8_t* pDataBuffer, std::size_t bufferSize, std::uintptr_t uStartOffset )
 {
 	// Holds the result of the decoding.
 	_DecodeResult res;
@@ -216,9 +215,9 @@ bool ProcessAccessHelp::disassembleMemory( BYTE* dataBuffer, SIZE_T bufferSize, 
 
 	decodedInstructionsCount = 0;
 
-	_OffsetType offset = startOffset;
+	_OffsetType offset = uStartOffset;
 
-	res = distorm_decode( offset, dataBuffer, (int)bufferSize, dt, decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount );
+	res = distorm_decode( offset, pDataBuffer, (int)bufferSize, dt, decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount );
 
 	if ( res == DECRES_INPUTERR )
 	{
@@ -228,53 +227,53 @@ bool ProcessAccessHelp::disassembleMemory( BYTE* dataBuffer, SIZE_T bufferSize, 
 	}
 	else if ( res == DECRES_SUCCESS )
 		return true;
-	
+
 	LOGS_DEBUG( "disassembleMemory :: res == %d", res );
 
-	return true; //not all instructions fit in buffer	
+	return true; //not all instructions fit in pBuffer	
 }
 
-DWORD_PTR ProcessAccessHelp::findPattern( DWORD_PTR startOffset, DWORD size, BYTE* pattern, const char* mask )
+std::uintptr_t ProcessAccessHelp::findPattern( std::uintptr_t uStartOffset, std::uint32_t uSize, std::uint8_t* pattern, const char* mask )
 {
-	DWORD pos = 0;
-	size_t searchLen = strlen( mask ) - 1;
+	std::uint32_t nPos = 0;
+	std::size_t szSearchLen = strlen( mask ) - 1;
 
-	for ( DWORD_PTR retAddress = startOffset; retAddress < startOffset + size; retAddress++ )
+	for ( std::uintptr_t uRetAddress = uStartOffset; uRetAddress < uStartOffset + uSize; uRetAddress++ )
 	{
-		if ( *reinterpret_cast<BYTE*>( retAddress ) == pattern[ pos ] || mask[ pos ] == '?' )
+		if ( *reinterpret_cast<std::uint8_t*>( uRetAddress ) == pattern[ nPos ] || mask[ nPos ] == '?' )
 		{
-			if ( mask[ pos + 1 ] == 0x00 )
+			if ( mask[ nPos + 1 ] == 0x00 )
 			{
-				return ( retAddress - searchLen );
+				return ( uRetAddress - szSearchLen );
 			}
-			pos++;
+			nPos++;
 		}
 		else
-			pos = 0;
+			nPos = 0;
 	}
 	return 0;
 }
 
-bool ProcessAccessHelp::readHeaderFromCurrentFile( const WCHAR* filePath )
+bool ProcessAccessHelp::readHeaderFromCurrentFile( const wchar_t* pFilePath )
 {
-	return readHeaderFromFile( fileHeaderFromDisk, sizeof( fileHeaderFromDisk ), filePath );
+	return readHeaderFromFile( fileHeaderFromDisk, sizeof( fileHeaderFromDisk ), pFilePath );
 }
 
-DWORD ProcessAccessHelp::getFileSize( const WCHAR* filePath )
+std::uint32_t ProcessAccessHelp::getFileSize( const wchar_t* pFilePath )
 {
-	HANDLE hFile = CreateFile( filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+	HANDLE hFile = CreateFile( pFilePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
 
 	if ( hFile == INVALID_HANDLE_VALUE )
 		return 0;
 
-	auto fileSize = getFileSize( hFile );
+	auto uFileSize = getFileSize( hFile );
 
 	CloseHandle( hFile );
 
-	return fileSize;
+	return uFileSize;
 }
 
-DWORD ProcessAccessHelp::getFileSize( HANDLE hFile )
+std::uint32_t ProcessAccessHelp::getFileSize( HANDLE hFile )
 {
 	if ( hFile == INVALID_HANDLE_VALUE || hFile == nullptr )
 	{
@@ -289,10 +288,10 @@ DWORD ProcessAccessHelp::getFileSize( HANDLE hFile )
 		return 0;
 	}
 
-	return static_cast<DWORD>( lpFileSize.QuadPart );
+	return static_cast<std::uint32_t>( lpFileSize.QuadPart );
 }
 
-bool ProcessAccessHelp::readMemoryFromFile( HANDLE hFile, LONG offset, DWORD size, LPVOID dataBuffer )
+bool ProcessAccessHelp::readMemoryFromFile( HANDLE hFile, LONG lOffset, std::uint32_t uSize, LPVOID pDataBuffer )
 {
 	if ( hFile == INVALID_HANDLE_VALUE )
 	{
@@ -300,80 +299,80 @@ bool ProcessAccessHelp::readMemoryFromFile( HANDLE hFile, LONG offset, DWORD siz
 		return false;
 	}
 
-	DWORD lpNumberOfBytesRead = 0;
+	DWORD dwNumberOfBytesRead = 0;
 
-	DWORD retValue = SetFilePointer( hFile, offset, nullptr, FILE_BEGIN );
+	DWORD dwResult = SetFilePointer( hFile, lOffset, nullptr, FILE_BEGIN );
 
-	if ( retValue == INVALID_SET_FILE_POINTER && GetLastError( ) != NO_ERROR )
+	if ( dwResult == INVALID_SET_FILE_POINTER && GetLastError( ) != NO_ERROR )
 	{
 		LOGS_DEBUG( "readMemoryFromFile :: SetFilePointer failed error %u", GetLastError( ) );
 		return false;
 	}
 
-	if ( !ReadFile( hFile, dataBuffer, size, &lpNumberOfBytesRead, nullptr ) )
+	if ( !ReadFile( hFile, pDataBuffer, uSize, &dwNumberOfBytesRead, nullptr ) )
 	{
-		LOGS_DEBUG( "readMemoryFromFile :: ReadFile failed - size %d - error %u", size, GetLastError( ) );
+		LOGS_DEBUG( "readMemoryFromFile :: ReadFile failed - size %d - error %u", uSize, GetLastError( ) );
 		return false;
 	}
 
 	return true;
 }
 
-bool ProcessAccessHelp::writeMemoryToNewFile( const WCHAR* file, DWORD size, LPCVOID dataBuffer )
+bool ProcessAccessHelp::writeMemoryToNewFile( const wchar_t* pFile, std::uint32_t uSize, LPCVOID pDataBuffer )
 {
-	HANDLE hFile = CreateFile( file, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
+	HANDLE hFile = CreateFile( pFile, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
 
 	if ( hFile == INVALID_HANDLE_VALUE )
 		return false;
-	
-	bool resultValue = writeMemoryToFile( hFile, 0, size, dataBuffer );
+
+	bool bResult = writeMemoryToFile( hFile, 0, uSize, pDataBuffer );
 
 	CloseHandle( hFile );
 
-	return resultValue;
+	return bResult;
 }
 
-bool ProcessAccessHelp::writeMemoryToFile( HANDLE hFile, LONG offset, DWORD size, LPCVOID dataBuffer )
+bool ProcessAccessHelp::writeMemoryToFile( HANDLE hFile, LONG lOffset, std::uint32_t uSize, LPCVOID pDataBuffer )
 {
-	if ( hFile == INVALID_HANDLE_VALUE || dataBuffer == nullptr )
+	if ( hFile == INVALID_HANDLE_VALUE || pDataBuffer == nullptr )
 	{
 		LOGS_DEBUG( "writeMemoryToFile :: Invalid parameters" );
 		return false;
 	}
 
-	DWORD lpNumberOfBytesWritten = 0;
+	DWORD dwNumberOfBytesWritten = 0;
 
-	DWORD retValue = SetFilePointer( hFile, offset, nullptr, FILE_BEGIN );
+	DWORD dwResult = SetFilePointer( hFile, lOffset, nullptr, FILE_BEGIN );
 
-	if ( retValue == INVALID_SET_FILE_POINTER && GetLastError( ) != NO_ERROR )
+	if ( dwResult == INVALID_SET_FILE_POINTER && GetLastError( ) != NO_ERROR )
 	{
 		LOGS_DEBUG( "writeMemoryToFile :: SetFilePointer failed error %u", GetLastError( ) );
 		return false;
 	}
 
-	if ( !WriteFile( hFile, dataBuffer, size, &lpNumberOfBytesWritten, nullptr ) )
+	if ( !WriteFile( hFile, pDataBuffer, uSize, &dwNumberOfBytesWritten, nullptr ) )
 	{
-		LOGS_DEBUG( "writeMemoryToFile :: WriteFile failed - size %d - error %u", size, GetLastError( ) );
+		LOGS_DEBUG( "writeMemoryToFile :: WriteFile failed - size %d - error %u", uSize, GetLastError( ) );
 		return false;
 	}
 
 	return true;
 }
 
-bool ProcessAccessHelp::writeMemoryToFileEnd( HANDLE hFile, DWORD size, LPCVOID dataBuffer )
+bool ProcessAccessHelp::writeMemoryToFileEnd( HANDLE hFile, std::uint32_t uSize, LPCVOID pDataBuffer )
 {
-	DWORD lpNumberOfBytesWritten = 0;
+	DWORD dwNumberOfBytesWritten = 0;
 
 	if ( hFile != INVALID_HANDLE_VALUE && hFile != nullptr )
 	{
 		SetFilePointer( hFile, 0, nullptr, FILE_END );
 
-		if ( WriteFile( hFile, dataBuffer, size, &lpNumberOfBytesWritten, nullptr ) )
+		if ( WriteFile( hFile, pDataBuffer, uSize, &dwNumberOfBytesWritten, nullptr ) )
 		{
 			return true;
 		}
 
-		LOGS_DEBUG( "writeMemoryToFileEnd :: WriteFile failed - size %d - error %u", size, GetLastError( ) );
+		LOGS_DEBUG( "writeMemoryToFileEnd :: WriteFile failed - size %d - error %u", uSize, GetLastError( ) );
 
 		return false;
 	}
@@ -382,9 +381,9 @@ bool ProcessAccessHelp::writeMemoryToFileEnd( HANDLE hFile, DWORD size, LPCVOID 
 	return false;
 }
 
-bool ProcessAccessHelp::readHeaderFromFile( BYTE* buffer, DWORD bufferSize, const WCHAR* filePath )
+bool ProcessAccessHelp::readHeaderFromFile( std::uint8_t* pBuffer, std::uint32_t uBufferSize, const wchar_t* pFilePath )
 {
-	HANDLE hFile = CreateFileW( filePath, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr );
+	HANDLE hFile = CreateFileW( pFilePath, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr );
 
 	if ( hFile == INVALID_HANDLE_VALUE )
 	{
@@ -392,30 +391,30 @@ bool ProcessAccessHelp::readHeaderFromFile( BYTE* buffer, DWORD bufferSize, cons
 		return false;
 	}
 
-	DWORD fileSize = getFileSize( hFile );
+	std::uint32_t uFileSize = getFileSize( hFile );
 
-	DWORD dwSize = ( fileSize > bufferSize ) ? bufferSize : static_cast<DWORD>( fileSize );
+	std::uint32_t uSize = ( uFileSize > uBufferSize ) ? uBufferSize : static_cast<std::uint32_t>( uFileSize );
 
-	bool returnValue = readMemoryFromFile( hFile, 0, dwSize, buffer );
+	bool returnValue = readMemoryFromFile( hFile, 0, uSize, pBuffer );
 
 	CloseHandle( hFile );
 
 	return returnValue;
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewRead( const WCHAR* filePath )
+LPVOID ProcessAccessHelp::createFileMappingViewRead( const wchar_t* pFilePath )
 {
-	return createFileMappingView( filePath, GENERIC_READ, PAGE_READONLY | SEC_IMAGE, FILE_MAP_READ );
+	return createFileMappingView( pFilePath, GENERIC_READ, PAGE_READONLY | SEC_IMAGE, FILE_MAP_READ );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewFull( const WCHAR* filePath )
+LPVOID ProcessAccessHelp::createFileMappingViewFull( const wchar_t* pFilePath )
 {
-	return createFileMappingView( filePath, GENERIC_ALL, PAGE_EXECUTE_READWRITE, FILE_MAP_ALL_ACCESS );
+	return createFileMappingView( pFilePath, GENERIC_ALL, PAGE_EXECUTE_READWRITE, FILE_MAP_ALL_ACCESS );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD accessFile, DWORD flProtect, DWORD accessMap )
+LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap )
 {
-	HANDLE hFile = CreateFile( filePath, accessFile, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+	HANDLE hFile = CreateFile( pFilePath, uAccessFile, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
 
 	if ( hFile == INVALID_HANDLE_VALUE )
 	{
@@ -424,7 +423,7 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 		return nullptr;
 	}
 
-	HANDLE hMappedFile = CreateFileMapping( hFile, nullptr, flProtect, 0, 0, nullptr );
+	HANDLE hMappedFile = CreateFileMapping( hFile, nullptr, uflProtect, 0, 0, nullptr );
 
 	CloseHandle( hFile );
 
@@ -444,7 +443,7 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 		return nullptr;
 	}
 
-	LPVOID addrMappedDll = MapViewOfFile( hMappedFile, accessMap, 0, 0, 0 );
+	LPVOID addrMappedDll = MapViewOfFile( hMappedFile, uAccessMap, 0, 0, 0 );
 
 	if ( addrMappedDll == nullptr )
 	{
@@ -460,9 +459,9 @@ LPVOID ProcessAccessHelp::createFileMappingView( const WCHAR* filePath, DWORD ac
 	return addrMappedDll;
 }
 
-DWORD ProcessAccessHelp::getProcessByName( const WCHAR* processName )
+std::uint32_t ProcessAccessHelp::getProcessByName( const wchar_t* processName )
 {
-	DWORD dwPID = 0;
+	std::uint32_t uPID = 0;
 
 	HANDLE hProcessSnap = CreateToolhelp32Snapshot( TH32CS_SNAPPROCESS, 0 );
 
@@ -480,57 +479,57 @@ DWORD ProcessAccessHelp::getProcessByName( const WCHAR* processName )
 	{
 		if ( !_wcsicmp( pe32.szExeFile, processName ) )
 		{
-			dwPID = pe32.th32ProcessID;
+			uPID = pe32.th32ProcessID;
 			break;
 		}
 	} while ( Process32NextW( hProcessSnap, &pe32 ) );
 
 	CloseHandle( hProcessSnap );
 
-	return dwPID;
+	return uPID;
 }
 
-bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleInfo>& moduleList )
+bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleInfo>& vModuleList )
 {
-	ModuleInfo module;
-	WCHAR filename[ MAX_PATH * 2 ] = { 0 };
-	DWORD cbNeeded = 0;
-	DeviceNameResolver deviceNameResolver;
+	ModuleInfo Module {};
+	wchar_t pFileName[ MAX_PATH * 2 ] = { 0 };
+	DWORD dwCbNeeded = 0;
+	DeviceNameResolver pDeviceNameResolver;
 
-	moduleList.reserve( 20 );
+	vModuleList.reserve( 20 );
 
-	EnumProcessModules( hProcess, nullptr, 0, &cbNeeded );
+	EnumProcessModules( hProcess, nullptr, 0, &dwCbNeeded );
 
-	auto hMods = std::unique_ptr<HMODULE[ ]>( new HMODULE[ cbNeeded / sizeof( HMODULE ) ] );
+	auto hMods = std::unique_ptr<HMODULE[ ]>( new HMODULE[ dwCbNeeded / sizeof( HMODULE ) ] );
 
-	if ( EnumProcessModules( hProcess, hMods.get( ), cbNeeded, &cbNeeded ) )
+	if ( EnumProcessModules( hProcess, hMods.get( ), dwCbNeeded, &dwCbNeeded ) )
 	{
-		for ( unsigned int i = 1; i < ( cbNeeded / sizeof( HMODULE ) ); i++ ) //skip first module!
+		for ( std::uint32_t i = 1; i < ( dwCbNeeded / sizeof( HMODULE ) ); i++ ) //skip first pModule!
 		{
-			module.modBaseAddr = reinterpret_cast<DWORD_PTR>( hMods[ i ] );
-			module.modBaseSize = static_cast<DWORD>( getSizeOfImageProcess( hProcess, module.modBaseAddr ) );
-			module.isAlreadyParsed = false;
-			module.parsing = false;
+			Module.uModBase = reinterpret_cast<std::uintptr_t>( hMods[ i ] );
+			Module.uModBaseSize = static_cast<std::uint32_t>( getSizeOfImageProcess( hProcess, Module.uModBase ) );
+			Module.isAlreadyParsed = false;
+			Module.parsing = false;
 
-			filename[ 0 ] = 0;
-			module.fullPath[ 0 ] = 0;
+			pFileName[ 0 ] = 0;
+			Module.pModulePath[ 0 ] = 0;
 
-			if ( GetMappedFileNameW( hProcess, reinterpret_cast<LPVOID>( module.modBaseAddr ), filename, _countof( filename ) ) > 0 )
+			if ( GetMappedFileNameW( hProcess, reinterpret_cast<LPVOID>( Module.uModBase ), pFileName, _countof( pFileName ) ) > 0 )
 			{
-				if ( !deviceNameResolver.resolveDeviceLongNameToShort( filename, module.fullPath ) )
+				if ( !pDeviceNameResolver.resolveDeviceLongNameToShort( pFileName, Module.pModulePath ) )
 				{
-					if ( !GetModuleFileNameExW( hProcess, hMods[ i ], module.fullPath, _countof( module.fullPath ) ) )
+					if ( !GetModuleFileNameExW( hProcess, hMods[ i ], Module.pModulePath, _countof( Module.pModulePath ) ) )
 					{
-						wcscpy_s( module.fullPath, filename );
+						wcscpy_s( Module.pModulePath, pFileName );
 					}
 				}
 			}
 			else
 			{
-				GetModuleFileNameExW( hProcess, hMods[ i ], module.fullPath, _countof( module.fullPath ) );
+				GetModuleFileNameExW( hProcess, hMods[ i ], Module.pModulePath, _countof( Module.pModulePath ) );
 			}
 
-			moduleList.push_back( module );
+			vModuleList.push_back( Module );
 		}
 
 		return true;
@@ -539,132 +538,132 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 	return false;
 }
 
-bool ProcessAccessHelp::getMemoryRegionFromAddress( DWORD_PTR address, DWORD_PTR* memoryRegionBase, SIZE_T* memoryRegionSize )
+bool ProcessAccessHelp::getMemoryRegionFromAddress( std::uintptr_t uAddress, std::uintptr_t* pMemoryRegionBase, std::size_t* pMemoryRegionSize )
 {
-	MEMORY_BASIC_INFORMATION memBasic;
+	MEMORY_BASIC_INFORMATION mbi;
 
-	if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( address ), &memBasic, sizeof( MEMORY_BASIC_INFORMATION ) ) != sizeof( MEMORY_BASIC_INFORMATION ) )
+	if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), &mbi, sizeof( MEMORY_BASIC_INFORMATION ) ) != sizeof( MEMORY_BASIC_INFORMATION ) )
 	{
 		LOGS_DEBUG( "getMemoryRegionFromAddress :: VirtualQueryEx error %u", GetLastError( ) );
 		return false;
 	}
 
-	*memoryRegionBase = reinterpret_cast<DWORD_PTR>( memBasic.BaseAddress );
-	*memoryRegionSize = memBasic.RegionSize;
+	*pMemoryRegionBase = reinterpret_cast<std::uintptr_t>( mbi.BaseAddress );
+	*pMemoryRegionSize = mbi.RegionSize;
 	return true;
 }
 
 bool ProcessAccessHelp::getSizeOfImageCurrentProcess( )
 {
-	DWORD_PTR newSizeOfImage = getSizeOfImageProcess( ProcessAccessHelp::hProcess, ProcessAccessHelp::targetImageBase );
+	std::uintptr_t uSizeOfImage = getSizeOfImageProcess( ProcessAccessHelp::hProcess, ProcessAccessHelp::uTargetImageBase );
 
-	if ( newSizeOfImage != 0 )
+	if ( uSizeOfImage != 0 )
 	{
-		ProcessAccessHelp::targetSizeOfImage = newSizeOfImage;
+		ProcessAccessHelp::uTargetSizeOfImage = uSizeOfImage;
 		return true;
 	}
 
-	return false;	
+	return false;
 }
 
-DWORD ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, DWORD_PTR moduleBase )
+std::uint32_t ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, std::uintptr_t uModuleBase )
 {
-	SIZE_T sizeOfImage = 0;
-	MEMORY_BASIC_INFORMATION lpBuffer = { 0 };
+	std::size_t szOfImage = 0;
+	MEMORY_BASIC_INFORMATION mbiBuffer = { 0 };
 
-	SIZE_T sizeOfImageNative = getSizeOfImageProcessNative( processHandle, moduleBase );
+	std::size_t szOfImageNative = getSizeOfImageProcessNative( processHandle, uModuleBase );
 
-	if ( sizeOfImageNative )
+	if ( szOfImageNative )
 	{
-		return sizeOfImageNative;
+		return static_cast<std::uint32_t>( szOfImageNative );
 	}
 
-	WCHAR filenameOriginal[ MAX_PATH * 2 ] = { 0 };
-	WCHAR filenameTest[ MAX_PATH * 2 ] = { 0 };
+	wchar_t pFileNameOriginal[ MAX_PATH * 2 ] = { 0 };
+	wchar_t pFileNameTest[ MAX_PATH * 2 ] = { 0 };
 
-	GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( moduleBase ), filenameOriginal, _countof( filenameOriginal ) );
+	GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), pFileNameOriginal, _countof( pFileNameOriginal ) );
 
 	do
 	{
-		moduleBase += lpBuffer.RegionSize;
-		sizeOfImage += lpBuffer.RegionSize;
+		uModuleBase += mbiBuffer.RegionSize;
+		szOfImage += mbiBuffer.RegionSize;
 
-		if ( !ApiTools::VirtualQueryEx( processHandle, reinterpret_cast<LPVOID>( moduleBase ), &lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ) ) )
+		if ( !ApiTools::VirtualQueryEx( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), &mbiBuffer, sizeof( MEMORY_BASIC_INFORMATION ) ) )
 		{
 			LOGS_DEBUG( "getSizeOfImageProcess :: VirtualQuery failed %X", GetLastError( ) );
 
-			lpBuffer.Type = 0;
+			mbiBuffer.Type = 0;
 
-			sizeOfImage = 0;
+			szOfImage = 0;
 		}
 
-		GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( moduleBase ), filenameTest, _countof( filenameTest ) );
+		GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), pFileNameTest, _countof( pFileNameTest ) );
 
-		if ( _wcsicmp( filenameOriginal, filenameTest ) != 0 ) // Problem: 2 modules without free space
+		if ( _wcsicmp( pFileNameOriginal, pFileNameTest ) != 0 ) // Problem: 2 modules without free space
 		{
 			break;
 		}
 
-	} while ( lpBuffer.Type == MEM_IMAGE );
+	} while ( mbiBuffer.Type == MEM_IMAGE );
 
-	return static_cast<DWORD>( sizeOfImage );
+	return static_cast<std::uint32_t>( szOfImage );
 }
 
-DWORD ProcessAccessHelp::getEntryPointFromFile( const WCHAR* filePath )
+std::uint32_t ProcessAccessHelp::getEntryPointFromFile( const wchar_t* pFilePath )
 {
-	PeParser peFile( filePath, false );
+	PeParser peFile( pFilePath, false );
 
 	return peFile.getEntryPoint( );
 }
 
-bool ProcessAccessHelp::createBackupFile( const WCHAR* filePath )
+bool ProcessAccessHelp::createBackupFile( const wchar_t* pFilePath )
 {
-	std::wstring backupFilePath = filePath;
-	backupFilePath += L".bak"; // Append .bak to the original file path
+	std::wstring strBackupFilePath = pFilePath;
+	strBackupFilePath += L".bak"; // Append .bak to the original file path
 
-	BOOL retValue = CopyFile( filePath, backupFilePath.c_str( ), FALSE );
+	BOOL bResult = CopyFile( pFilePath, strBackupFilePath.c_str( ), FALSE );
 
-	if ( !retValue )
+	if ( !bResult )
 	{
 		LOGS_DEBUG( "createBackupFile :: CopyFile failed with error 0x%X", GetLastError( ) );
 	}
 
-	return retValue != 0;
+	return bResult != 0;
 }
 
-DWORD ProcessAccessHelp::getModuleHandlesFromProcess(const HANDLE hProcess, HMODULE** hMods)
+std::uint32_t ProcessAccessHelp::getModuleHandlesFromProcess( const HANDLE hProcess, HMODULE** hMods )
 {
-    DWORD count = 30;
-    DWORD cbNeeded = 0;
-    bool notEnough = true;
+	std::uint32_t count = 30;
+	DWORD cbNeeded = 0;
+	bool notEnough = true;
 
-    std::vector<HMODULE> modules(count);
+	std::vector<HMODULE> modules( count );
 
-    do
-    {
-        if (!EnumProcessModules(hProcess, &modules[0], static_cast<DWORD>(modules.size() * sizeof(HMODULE)), &cbNeeded))
-        {
-            LOGS_DEBUG("getModuleHandlesFromProcess :: EnumProcessModules failed count %lu", modules.size());
+	do
+	{
+		if ( !EnumProcessModules( hProcess, &modules[ 0 ], static_cast<std::uint32_t>( modules.size( ) * sizeof( HMODULE ) ), &cbNeeded ) )
+		{
+			LOGS_DEBUG( "getModuleHandlesFromProcess :: EnumProcessModules failed count %lu", modules.size( ) );
 
-            return 0;
-        }
+			return 0;
+		}
 
-        if (modules.size() * sizeof(HMODULE) < cbNeeded)
-        {
-            modules.resize(cbNeeded / sizeof(HMODULE));
-        }
-        else
-        {
-            notEnough = false;
-        }
-    } while (notEnough);
+		if ( modules.size( ) * sizeof( HMODULE ) < cbNeeded )
+		{
+			modules.resize( cbNeeded / sizeof( HMODULE ) );
+		}
+		else
+		{
+			notEnough = false;
+		}
+	} while ( notEnough );
 
-    // Allocate and copy to output parameter
-    *hMods = new HMODULE[modules.size()];
+	// Allocate and copy to output parameter
+	*hMods = new HMODULE[ modules.size( ) ];
 
-    std::copy(modules.begin(), modules.end(), *hMods);
+	std::copy( modules.begin( ), modules.end( ), *hMods );
 
-    return cbNeeded / sizeof(HMODULE);
+	return cbNeeded / sizeof( HMODULE );
 }
 
 void ProcessAccessHelp::setCurrentProcessAsTarget( )
@@ -687,22 +686,22 @@ bool ProcessAccessHelp::terminateProcess( )
 	return NT_SUCCESS( NtTerminateProcess( ProcessAccessHelp::hProcess, 0 ) );
 }
 
-bool ProcessAccessHelp::isPageAccessable( DWORD Protect )
+bool ProcessAccessHelp::isPageAccessable( std::uint32_t uProtect )
 {
-	if ( Protect & PAGE_NOCACHE ) Protect ^= PAGE_NOCACHE;
-	if ( Protect & PAGE_GUARD ) Protect ^= PAGE_GUARD;
-	if ( Protect & PAGE_WRITECOMBINE ) Protect ^= PAGE_WRITECOMBINE;
+	if ( uProtect & PAGE_NOCACHE ) uProtect ^= PAGE_NOCACHE;
+	if ( uProtect & PAGE_GUARD ) uProtect ^= PAGE_GUARD;
+	if ( uProtect & PAGE_WRITECOMBINE ) uProtect ^= PAGE_WRITECOMBINE;
 
-	return ( Protect != PAGE_NOACCESS );
+	return ( uProtect != PAGE_NOACCESS );
 }
 
-bool ProcessAccessHelp::isPageExecutable( DWORD Protect )
+bool ProcessAccessHelp::isPageExecutable( std::uint32_t uProtect )
 {
-	if ( Protect & PAGE_NOCACHE ) Protect ^= PAGE_NOCACHE;
-	if ( Protect & PAGE_GUARD ) Protect ^= PAGE_GUARD;
-	if ( Protect & PAGE_WRITECOMBINE ) Protect ^= PAGE_WRITECOMBINE;
+	if ( uProtect & PAGE_NOCACHE ) uProtect ^= PAGE_NOCACHE;
+	if ( uProtect & PAGE_GUARD ) uProtect ^= PAGE_GUARD;
+	if ( uProtect & PAGE_WRITECOMBINE ) uProtect ^= PAGE_WRITECOMBINE;
 
-	switch ( Protect )
+	switch ( uProtect )
 	{
 	case PAGE_EXECUTE:
 	case PAGE_EXECUTE_READ:
@@ -716,13 +715,13 @@ bool ProcessAccessHelp::isPageExecutable( DWORD Protect )
 	}
 }
 
-SIZE_T ProcessAccessHelp::getSizeOfImageProcessNative( HANDLE processHandle, DWORD_PTR moduleBase )
+std::size_t ProcessAccessHelp::getSizeOfImageProcessNative( HANDLE processHandle, std::uintptr_t uModuleBase )
 {
 	MEMORY_REGION_INFORMATION memRegion = { 0 };
 
-	SIZE_T retLen = 0;
+	std::size_t retLen = 0;
 
-	return ( ApiTools::QueryVirtualMemory( processHandle, reinterpret_cast<PVOID>( moduleBase ),
+	return ( ApiTools::QueryVirtualMemory( processHandle, reinterpret_cast<PVOID>( uModuleBase ),
 		MemoryRegionInformation, &memRegion, sizeof( MEMORY_REGION_INFORMATION ), &retLen ) == 0ul )
 		? memRegion.RegionSize : 0;
 }

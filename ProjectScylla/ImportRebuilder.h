@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <cstdint>
 #include "PeParser.h"
 #include "Thunks.h"
 #include "IATReferenceScan.h"
@@ -8,67 +9,67 @@
 
 class ImportRebuilder : public PeParser {
 public:
-	ImportRebuilder( const WCHAR* file ) : PeParser( file, true )
+	ImportRebuilder( const wchar_t* file ): PeParser( file, true )
 	{
 		pImportDescriptor = nullptr;
 		pThunkData = nullptr;
 		pImportByName = nullptr;
 
-		numberOfImportDescriptors = 0;
-		sizeOfImportSection = 0;
-		sizeOfApiAndModuleNames = 0;
-		importSectionIndex = 0;
-		useOFT = false;
-		sizeOfOFTArray = 0;
-		newIatInSection = false;
-		BuildDirectImportsJumpTable = false;
-		sizeOfJumpTable = 0;
+		szNumberOfImportDescriptors = 0;
+		szOfImportSection = 0;
+		szOfApiAndModuleNames = 0;
+		szImportSectionIndex = 0;
+		bUseOFT = false;
+		szOfOFTArray = 0;
+		bNewIatInSection = false;
+		bBuildDirectImportsJumpTable = false;
+		uSizeOfJumpTable = 0;
 	}
 
-	bool rebuildImportTable( const WCHAR* newFilePath, std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	bool rebuildImportTable( const wchar_t* pNewFilePath, std::map<std::uintptr_t, ImportModuleThunk>& vModuleList );
 	void enableOFTSupport( );
-	void enableNewIatInSection( DWORD_PTR iatAddress, DWORD iatSize );
+	void enableNewIatInSection( std::uintptr_t uIATAddress, std::uint32_t uIatSize );
 
-	IATReferenceScan* iatReferenceScan;
-	bool BuildDirectImportsJumpTable;
+	IATReferenceScan* pIatReferenceScan;
+	bool bBuildDirectImportsJumpTable;
 private:
 	PIMAGE_IMPORT_DESCRIPTOR pImportDescriptor;
 	PIMAGE_THUNK_DATA pThunkData;
 	PIMAGE_IMPORT_BY_NAME pImportByName;
 
-	size_t numberOfImportDescriptors;
-	size_t sizeOfImportSection;
-	size_t sizeOfApiAndModuleNames;
-	size_t importSectionIndex;
+	std::size_t szNumberOfImportDescriptors;
+	std::size_t szOfImportSection;
+	std::size_t szOfApiAndModuleNames;
+	std::size_t szImportSectionIndex;
 
 	//OriginalFirstThunk Array in Import Section
-	size_t sizeOfOFTArray;
-	bool useOFT;
-	bool newIatInSection;
-	DWORD_PTR IatAddress;
+	std::size_t szOfOFTArray;
+	bool bUseOFT;
+	bool bNewIatInSection;
+	std::uintptr_t IatAddress;
 
-	DWORD IatSize;
+	std::uint32_t IatSize;
 
-	DWORD sizeOfJumpTable;
+	std::uint32_t uSizeOfJumpTable;
 
-	DWORD directImportsJumpTableRVA;
-	BYTE* JMPTableMemory;
-	DWORD newIatBaseAddressRVA;
+	std::uint32_t uDirectImportsJumpTableRVA;
+	std::uint8_t* uJMPTableMemory;
+	std::uint32_t uNewIatBaseAddressRVA;
 
 
-	DWORD fillImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
-	BYTE* getMemoryPointerFromRVA( DWORD_PTR dwRVA );
+	std::uint32_t fillImportSection( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList );
+	std::uint8_t* getMemoryPointerFromRVA( std::uintptr_t uRVA );
 
-	bool createNewImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
-	bool buildNewImportTable( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
-	void setFlagToIATSection( DWORD_PTR iatAddress );
-	size_t addImportToImportTable( ImportThunk* pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, DWORD sectionOffset );
-	size_t addImportDescriptor( ImportModuleThunk* pImportModule, DWORD sectionOffset, DWORD sectionOffsetOFTArray );
+	bool createNewImportSection( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList );
+	bool buildNewImportTable( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList );
+	void setFlagToIATSection( std::uintptr_t uIATAddress );
+	std::size_t addImportToImportTable( ImportThunk* pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, std::uint32_t uSectionOffset );
+	std::size_t addImportDescriptor( ImportModuleThunk* pImportModule, std::uint32_t uSectionOffset, std::uint32_t uSectionOffsetOFTArray );
 
-	void calculateImportSizes( std::map<DWORD_PTR, ImportModuleThunk>& moduleList );
+	void calculateImportSizes( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList );
 
-	void addSpecialImportDescriptor( DWORD_PTR rvaFirstThunk, DWORD sectionOffsetOFTArray );
+	void addSpecialImportDescriptor( std::uintptr_t uRvaFirstThunk, std::uint32_t uSectionOffsetOFTArray );
 	void patchFileForNewIatLocation( );
-	void changeIatBaseAddress( std::map<DWORD_PTR, ImportModuleThunk>& moduleList ) const;
+	void changeIatBaseAddress( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList ) const;
 	void patchFileForDirectImportJumpTable( );
 };

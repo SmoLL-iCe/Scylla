@@ -12,26 +12,26 @@
 #undef min
 #undef max
 
-stdext::hash_multimap<DWORD_PTR, ApiInfo*> ApiReader::apiList; //api look up table
-std::map<DWORD_PTR, ImportModuleThunk>* ApiReader::moduleThunkList; //store found apis
+stdext::hash_multimap<std::uintptr_t, ApiInfo*> ApiReader::mpApiList; //api look up table
+std::map<std::uintptr_t, ImportModuleThunk>* ApiReader::mpModuleThunkList; //store found apis
 
-DWORD_PTR ApiReader::minApiAddress = static_cast<DWORD_PTR>( - 1);
-DWORD_PTR ApiReader::maxApiAddress = 0;
+std::uintptr_t ApiReader::uMinApiAddress = static_cast<std::uintptr_t>( - 1 );
+std::uintptr_t ApiReader::uMaxApiAddress = 0;
 
 void ApiReader::readApisFromModuleList( )
 {
 	readExportTableAlwaysFromDisk = Config::APIS_ALWAYS_FROM_DISK;
 
-	for ( auto& pModule : moduleList )
+	for ( auto& pModule : vModuleList )
 	{
 		setModulePriority( &pModule );
 
-		if ( pModule.modBaseAddr + pModule.modBaseSize > maxValidAddress )
+		if ( pModule.uModBase + pModule.uModBaseSize > uMaxValidAddress )
 		{
-			maxValidAddress = pModule.modBaseAddr + pModule.modBaseSize;
+			uMaxValidAddress = pModule.uModBase + pModule.uModBaseSize;
 		}
 
-		LOGS_DEBUG( "Module parsing: %ls", pModule.fullPath );
+		LOGS_DEBUG( "Module parsing: %ls", pModule.pModulePath );
 
 		if ( !pModule.isAlreadyParsed )
 		{
@@ -39,8 +39,8 @@ void ApiReader::readApisFromModuleList( )
 		}
 	}
 
-	LOGS( "Address Min " PRINTF_DWORD_PTR_FULL_S " Max " PRINTF_DWORD_PTR_FULL_S "\nimagebase " PRINTF_DWORD_PTR_FULL_S " maxValidAddress " PRINTF_DWORD_PTR_FULL_S, 
-		minApiAddress, maxApiAddress, targetImageBase, maxValidAddress );
+	LOGS( "Address Min " PRINTF_DWORD_PTR_FULL_S " Max " PRINTF_DWORD_PTR_FULL_S "\nimagebase " PRINTF_DWORD_PTR_FULL_S " uMaxValidAddress " PRINTF_DWORD_PTR_FULL_S,
+		uMinApiAddress, uMaxApiAddress, uTargetImageBase, uMaxValidAddress );
 }
 
 void ApiReader::parseModule( ModuleInfo* pModule )
@@ -63,191 +63,193 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 	pModule->isAlreadyParsed = true;
 }
 
-void ApiReader::parseModuleWithMapping( ModuleInfo* moduleInfo )
+void ApiReader::parseModuleWithMapping( ModuleInfo* pModuleInfo )
 {
-	LPVOID fileMapping = createFileMappingViewRead( moduleInfo->fullPath );
+	LPVOID pFileMapping = createFileMappingViewRead( pModuleInfo->pModulePath );
 
-	if ( fileMapping == nullptr )
+	if ( pFileMapping == nullptr )
 		return;
 
-	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( fileMapping );
-	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<DWORD_PTR>( fileMapping ) + pDosHeader->e_lfanew );
+	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pFileMapping );
+	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( pFileMapping ) + pDosHeader->e_lfanew );
 
 	if ( isPeAndExportTableValid( pNtHeader ) )
 	{
-		parseExportTable( moduleInfo, pNtHeader, 
-			reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( 
-			reinterpret_cast<DWORD_PTR>( fileMapping ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ), 
-			reinterpret_cast<DWORD_PTR>( fileMapping ) );
+		parseExportTable( pModuleInfo, pNtHeader,
+			reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
+				reinterpret_cast<std::uintptr_t>( pFileMapping ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
+			reinterpret_cast<std::uintptr_t>( pFileMapping ) );
 	}
 
-	UnmapViewOfFile( fileMapping );
+	UnmapViewOfFile( pFileMapping );
 }
 
-inline bool ApiReader::isApiForwarded( DWORD_PTR rva, PIMAGE_NT_HEADERS pNtHeader )
+inline bool ApiReader::isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader )
 {
 	auto DirExport = pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ];
 
-	return ( rva > DirExport.VirtualAddress )
-		&& ( rva < ( DirExport.VirtualAddress + DirExport.Size ) );
+	return ( RVA > DirExport.VirtualAddress )
+		&& ( RVA < ( DirExport.VirtualAddress + DirExport.Size ) );
 }
 
-void ApiReader::handleForwardedApi(DWORD_PTR vaStringPointer, const char* functionNameParent, DWORD_PTR rvaParent, WORD ordinalParent, ModuleInfo* moduleParent) {
-   
-	auto forwardedString = reinterpret_cast<char*>(vaStringPointer);
+void ApiReader::handleForwardedApi( std::uintptr_t uVaStringPointer, const char* pFuncNameParent, std::uintptr_t uRvaParent, std::uint16_t uOrdinalParent, ModuleInfo* pModuleParent ) {
 
-    WORD ordinal = 0;
-    DWORD_PTR vaApi = 0;
-    DWORD_PTR rvaApi = 0;
+	auto pForwardedString = reinterpret_cast<char*>( uVaStringPointer );
 
-    auto pos = std::strchr(forwardedString, '.');
+	std::uint16_t uOrdinal = 0;
+	std::uintptr_t uVaApi = 0;
+	std::uintptr_t uRvaApi = 0;
 
-    if (!pos) 
+	auto nPos = std::strchr( pForwardedString, '.' );
+
+	if ( !nPos )
 		return;
 
-	std::string dllName;
+	std::string strDllName = "";
 
-    dllName.assign(forwardedString, pos);
+	strDllName.assign( pForwardedString, nPos );
 
-	std::string searchFunctionName = pos + 1;
+	std::string strSearchFunctionName = nPos + 1;
 
-    if (auto hashPos = std::strchr(searchFunctionName.c_str(), '#')) {
-        searchFunctionName = hashPos + 1;
-        ordinal = static_cast<WORD>(std::atoi(searchFunctionName.c_str()));
-    }
+	if ( auto pHashPos = std::strchr( strSearchFunctionName.c_str( ), '#' ) ) {
+		strSearchFunctionName = pHashPos + 1;
+		uOrdinal = static_cast<std::uint16_t>( std::atoi( strSearchFunctionName.c_str( ) ) );
+	}
 
-    if (!_strnicmp(dllName.c_str(), "API-", 4) || !_strnicmp(dllName.c_str(), "EXT-", 4)) {
-        HMODULE hModTemp = GetModuleHandleA(dllName.c_str());
-        if (!hModTemp) {
-            hModTemp = LoadLibraryA(dllName.c_str());
-        }
+	if ( !_strnicmp( strDllName.c_str( ), "API-", 4 ) || !_strnicmp( strDllName.c_str( ), "EXT-", 4 ) ) {
+		HMODULE hModTemp = GetModuleHandleA( strDllName.c_str( ) );
+		if ( !hModTemp ) {
+			hModTemp = LoadLibraryA( strDllName.c_str( ) );
+		}
 
 		if ( !hModTemp ) {
 			return;
 		}
 
-        FARPROC addy = ordinal ? GetProcAddress(hModTemp, reinterpret_cast<LPCSTR>(ordinal)) : GetProcAddress(hModTemp, searchFunctionName.c_str());
+		FARPROC pAddy = uOrdinal ? GetProcAddress( hModTemp, reinterpret_cast<LPCSTR>( uOrdinal ) ) : GetProcAddress( hModTemp, strSearchFunctionName.c_str( ) );
 
-        if (addy) {
-            addApi(functionNameParent, 0, ordinalParent, reinterpret_cast<DWORD_PTR>(addy), reinterpret_cast<DWORD_PTR>(addy) - reinterpret_cast<DWORD_PTR>(hModTemp), true, moduleParent);
-        }
-        return;
-    }
+		if ( pAddy ) {
+			addApi( pFuncNameParent, 0, uOrdinalParent, reinterpret_cast<std::uintptr_t>( pAddy ), reinterpret_cast<std::uintptr_t>( pAddy ) - reinterpret_cast<std::uintptr_t>( hModTemp ), true, pModuleParent );
+		}
+		return;
+	}
 
-    dllName += ".dll";
+	strDllName += ".dll";
 
-    std::wstring dllNameW(dllName.begin(), dllName.end());
+	std::wstring strDllNameW( strDllName.begin( ), strDllName.end( ) );
 
-	ModuleInfo* pModule = ( !_wcsicmp( dllNameW.c_str( ), moduleParent->getFilename( ) ) ) ? moduleParent : findModuleByName( dllNameW.c_str( ) );
+	ModuleInfo* pModule = ( !_wcsicmp( strDllNameW.c_str( ), pModuleParent->getFilename( ) ) ) ? pModuleParent : findModuleByName( strDllNameW.c_str( ) );
 
-    if (pModule) {
+	if ( pModule ) {
 
-        if (ordinal) {
+		if ( uOrdinal ) {
 
-            findApiByModuleAndOrdinal(pModule, ordinal, &vaApi, &rvaApi);
+			findApiByModuleAndOrdinal( pModule, uOrdinal, &uVaApi, &uRvaApi );
 
-        } else {
+		}
+		else {
 
-            findApiByModuleAndName(pModule, searchFunctionName.c_str(), &vaApi, &rvaApi);
-        }
+			findApiByModuleAndName( pModule, strSearchFunctionName.c_str( ), &uVaApi, &uRvaApi );
+		}
 
-        if (rvaApi == 0) {
-            LOGS("handleForwardedApi :: Api not found, this is really BAD! %s", forwardedString);
-        } else {
-            addApi(functionNameParent, 0, ordinalParent, vaApi, rvaApi, true, moduleParent);
-        }
-    }
+		if ( uRvaApi == 0 ) {
+			LOGS( "handleForwardedApi :: Api not found, this is really BAD! %s", pForwardedString );
+		}
+		else {
+			addApi( pFuncNameParent, 0, uOrdinalParent, uVaApi, uRvaApi, true, pModuleParent );
+		}
+	}
 }
 
-ModuleInfo* ApiReader::findModuleByName( const WCHAR* name )
+ModuleInfo* ApiReader::findModuleByName( const wchar_t* pName )
 {
-	for ( unsigned int i = 0; i < moduleList.size( ); i++ ) {
-		if ( !_wcsicmp( moduleList[ i ].getFilename( ), name ) )
+	for ( std::uint32_t i = 0; i < vModuleList.size( ); i++ ) {
+		if ( !_wcsicmp( vModuleList[ i ].getFilename( ), pName ) )
 		{
-			return &moduleList[ i ];
+			return &vModuleList[ i ];
 		}
 	}
 
 	return 0;
 }
 
-void ApiReader::addApiWithoutName( WORD ordinal, DWORD_PTR va, DWORD_PTR rva, bool isForwarded, ModuleInfo* moduleInfo )
+void ApiReader::addApiWithoutName( std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo )
 {
-	addApi( 0, 0, ordinal, va, rva, isForwarded, moduleInfo );
+	addApi( 0, 0, uOrdinal, VA, RVA, isForwarded, pModuleInfo );
 }
 
-void ApiReader::addApi( const char* functionName, WORD hint, WORD ordinal, DWORD_PTR va, DWORD_PTR rva, bool isForwarded, ModuleInfo* moduleInfo )
+void ApiReader::addApi( const char* pFuncName, std::uint16_t uHint, std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo )
 {
-	ApiInfo* apiInfo = new ApiInfo( );
+	ApiInfo* pApiInfo = new ApiInfo( );
 
-	if ( ( functionName != 0 ) && ( strlen( functionName ) < _countof( apiInfo->name ) ) )
+	if ( ( pFuncName != 0 ) && ( strlen( pFuncName ) < _countof( pApiInfo->name ) ) )
 	{
-		strcpy_s( apiInfo->name, functionName );
+		strcpy_s( pApiInfo->name, pFuncName );
 	}
 	else
 	{
-		apiInfo->name[ 0 ] = 0x00;
+		pApiInfo->name[ 0 ] = 0x00;
 	}
 
-	apiInfo->ordinal = ordinal;
-	apiInfo->isForwarded = isForwarded;
-	apiInfo->module = moduleInfo;
-	apiInfo->rva = rva;
-	apiInfo->va = va;
-	apiInfo->hint = hint;
+	pApiInfo->uOrdinal = uOrdinal;
+	pApiInfo->isForwarded = isForwarded;
+	pApiInfo->pModule = pModuleInfo;
+	pApiInfo->uRVA = RVA;
+	pApiInfo->uVA = VA;
+	pApiInfo->uHint = uHint;
 
-	setMinMaxApiAddress( va );
+	setMinMaxApiAddress( VA );
 
-	moduleInfo->apiList.push_back( apiInfo );
+	pModuleInfo->vApiList.push_back( pApiInfo );
 
-	apiList.insert( API_Pair( va, apiInfo ) );
+	mpApiList.insert( API_Pair( VA, pApiInfo ) );
 }
 
-std::unique_ptr<BYTE[ ]> ApiReader::getHeaderFromProcess( ModuleInfo* pModule ) {
+std::unique_ptr<std::uint8_t[ ]> ApiReader::getHeaderFromProcess( ModuleInfo* pModule ) {
 
-	DWORD readSize = std::min( pModule->modBaseSize, static_cast<DWORD>( PE_HEADER_BYTES_COUNT ) );
+	std::uint32_t uReadSize = std::min( pModule->uModBaseSize, static_cast<std::uint32_t>( PE_HEADER_BYTES_COUNT ) );
 
-	auto bufferHeader = std::make_unique<BYTE[ ]>( readSize );
+	auto pBufferHeader = std::make_unique<std::uint8_t[ ]>( uReadSize );
 
-	if ( !readMemoryFromProcess( pModule->modBaseAddr, readSize, bufferHeader.get( ) ) ) {
+	if ( !readMemoryFromProcess( pModule->uModBase, uReadSize, pBufferHeader.get( ) ) ) {
 
 		LOGS( "getHeaderFromProcess :: Error reading header" );
 
 		return nullptr;
 	}
 
-	return bufferHeader;
+	return pBufferHeader;
 }
 
-std::unique_ptr<BYTE[ ]> ApiReader::getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader ) {
+std::unique_ptr<std::uint8_t[ ]> ApiReader::getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader ) {
 
-	DWORD readSize = pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].Size;
+	std::uint32_t uReadSize = pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].Size;
 
-	if ( readSize < ( sizeof( IMAGE_EXPORT_DIRECTORY ) + 8 ) ) {
+	if ( uReadSize < ( sizeof( IMAGE_EXPORT_DIRECTORY ) + 8 ) ) {
 
-		LOGS( "Something is wrong with the PE Header here Export table size %d", readSize );
+		LOGS( "Something is wrong with the PE Header here Export table size %d", uReadSize );
 
-		readSize = sizeof( IMAGE_EXPORT_DIRECTORY ) + 100;
+		uReadSize = sizeof( IMAGE_EXPORT_DIRECTORY ) + 100;
 	}
 
-	if ( readSize == 0 ) return nullptr;
+	if ( uReadSize == 0 ) return nullptr;
 
-	auto bufferExportTable = std::make_unique<BYTE[ ]>( readSize );
+	auto pBufferExportTable = std::make_unique<std::uint8_t[ ]>( uReadSize );
 
-	if ( !readMemoryFromProcess( 
-		pModule->modBaseAddr + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress, 
-		readSize, bufferExportTable.get( ) ) ) {
+	if ( !readMemoryFromProcess(
+		pModule->uModBase + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress,
+		uReadSize, pBufferExportTable.get( ) ) ) {
 
 		LOGS( "getExportTableFromProcess :: Error reading export table from process" );
 
 		return nullptr;
 	}
-	return bufferExportTable;
+	return pBufferExportTable;
 }
 
 void ApiReader::parseModuleWithProcess( ModuleInfo* pModule )
 {
-	PeParser peParser( pModule->modBaseAddr, false );
+	PeParser peParser( pModule->uModBase, false );
 
 	if ( !peParser.isValidPeFile( ) )
 		return;
@@ -260,39 +262,39 @@ void ApiReader::parseModuleWithProcess( ModuleInfo* pModule )
 
 		if ( bufferExportTable )
 		{
-			parseExportTable( pModule, pNtHeader, 
-				reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( bufferExportTable.get( ) ), 
-				reinterpret_cast<DWORD_PTR>( bufferExportTable.get( ) ) - pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
+			parseExportTable( pModule, pNtHeader,
+				reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( bufferExportTable.get( ) ),
+				reinterpret_cast<std::uintptr_t>( bufferExportTable.get( ) ) - pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
 		}
 	}
 }
 
-void ApiReader::parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress )
+void ApiReader::parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress )
 {
-	auto addressOfFunctionsArray = reinterpret_cast<DWORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfFunctions ) + deltaAddress );
-	auto addressOfNamesArray = reinterpret_cast<DWORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfNames ) + deltaAddress );
-	auto addressOfNameOrdinalsArray = reinterpret_cast<WORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfNameOrdinals ) + deltaAddress );
+	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
+	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
+	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
 
-	LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->fullPath, pExportDir->NumberOfNames );
+	LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->pModulePath, pExportDir->NumberOfNames );
 
-	for ( WORD i = 0; i < pExportDir->NumberOfNames; i++ )
+	for ( std::uint16_t i = 0; i < pExportDir->NumberOfNames; i++ )
 	{
-		auto functionName = reinterpret_cast<char*>( addressOfNamesArray[ i ] + deltaAddress );
-		WORD ordinal = static_cast<WORD>( addressOfNameOrdinalsArray[ i ] + pExportDir->Base );
-		DWORD_PTR RVA = addressOfFunctionsArray[ addressOfNameOrdinalsArray[ i ] ];
-		DWORD_PTR VA = RVA + pModule->modBaseAddr;
+		auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + uDeltaAddress );
+		std::uint16_t uOrdinal = static_cast<std::uint16_t>( pAddressOfNameOrdinals[ i ] + pExportDir->Base );
+		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
+		std::uintptr_t VA = RVA + pModule->uModBase;
 
-		LOGS( "parseExportTable :: api %s ordinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, functionName, ordinal, pModule->modBaseAddr, RVA, VA );
+		LOGS( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
 
-		if ( !isApiBlacklisted( functionName ) )
+		if ( !isApiBlacklisted( pFuncName ) )
 		{
 			if ( !isApiForwarded( RVA, pNtHeader ) )
 			{
-				addApi( functionName, i, ordinal, VA, RVA, false, pModule );
+				addApi( pFuncName, i, uOrdinal, VA, RVA, false, pModule );
 			}
 			else
 			{
-				handleForwardedApi( RVA + deltaAddress, functionName, RVA, ordinal, pModule );
+				handleForwardedApi( RVA + uDeltaAddress, pFuncName, RVA, uOrdinal, pModule );
 			}
 		}
 	}
@@ -300,61 +302,61 @@ void ApiReader::parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHead
 	// Exports without name
 	if ( pExportDir->NumberOfNames != pExportDir->NumberOfFunctions )
 	{
-		for ( WORD i = 0; i < pExportDir->NumberOfFunctions; i++ )
+		for ( std::uint16_t i = 0; i < pExportDir->NumberOfFunctions; i++ )
 		{
-			bool withoutName = true;
-			for ( WORD j = 0; j < pExportDir->NumberOfNames; j++ )
+			bool bWithoutName = true;
+			for ( std::uint16_t j = 0; j < pExportDir->NumberOfNames; j++ )
 			{
-				if ( addressOfNameOrdinalsArray[ j ] == i )
+				if ( pAddressOfNameOrdinals[ j ] == i )
 				{
-					withoutName = false;
+					bWithoutName = false;
 					break;
 				}
 			}
-			if ( withoutName && addressOfFunctionsArray[ i ] != 0 )
+			if ( bWithoutName && pAddressOfFuncs[ i ] != 0 )
 			{
-				WORD ordinal = static_cast<WORD>( i + pExportDir->Base );
-				DWORD_PTR RVA = addressOfFunctionsArray[ i ];
-				DWORD_PTR VA = RVA + pModule->modBaseAddr;
+				std::uint16_t uOrdinal = static_cast<std::uint16_t>( i + pExportDir->Base );
+				std::uintptr_t RVA = pAddressOfFuncs[ i ];
+				std::uintptr_t VA = RVA + pModule->uModBase;
 
 				if ( !isApiForwarded( RVA, pNtHeader ) )
 				{
-					addApiWithoutName( ordinal, VA, RVA, false, pModule );
+					addApiWithoutName( uOrdinal, VA, RVA, false, pModule );
 				}
 				else
 				{
-					handleForwardedApi( RVA + deltaAddress, nullptr, RVA, ordinal, pModule );
+					handleForwardedApi( RVA + uDeltaAddress, nullptr, RVA, uOrdinal, pModule );
 				}
 			}
 		}
 	}
 }
 
-void ApiReader::findApiByModuleAndOrdinal( ModuleInfo* pModule, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi )
+void ApiReader::findApiByModuleAndOrdinal( ModuleInfo* pModule, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
-	findApiByModule( pModule, 0, ordinal, vaApi, rvaApi );
+	findApiByModule( pModule, 0, uOrdinal, pVaApi, pRvaApi );
 }
 
-void ApiReader::findApiByModuleAndName( ModuleInfo* pModule, const char* searchFunctionName, DWORD_PTR* vaApi, DWORD_PTR* rvaApi )
+void ApiReader::findApiByModuleAndName( ModuleInfo* pModule, const char* pSearchFunctionName, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
-	findApiByModule( pModule, searchFunctionName, 0, vaApi, rvaApi );
+	findApiByModule( pModule, pSearchFunctionName, 0, pVaApi, pRvaApi );
 }
 
-void ApiReader::findApiByModule( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi ) {
+void ApiReader::findApiByModule( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi ) {
 	if ( isModuleLoadedInOwnProcess( pModule ) ) {
 		HMODULE hModule = GetModuleHandle( pModule->getFilename( ) );
 
 		if ( hModule ) {
-			if ( vaApi ) {
-				FARPROC procAddress = ordinal ? GetProcAddress( hModule, MAKEINTRESOURCEA( ordinal ) ) : GetProcAddress( hModule, searchFunctionName );
+			if ( pVaApi ) {
+				FARPROC procAddress = uOrdinal ? GetProcAddress( hModule, MAKEINTRESOURCEA( uOrdinal ) ) : GetProcAddress( hModule, pSearchFunctionName );
 				if ( procAddress ) {
-					*vaApi = reinterpret_cast<DWORD_PTR>( procAddress );
-					*rvaApi = *vaApi - reinterpret_cast<DWORD_PTR>( hModule );
-					*vaApi = *rvaApi + pModule->modBaseAddr;
+					*pVaApi = reinterpret_cast<std::uintptr_t>( procAddress );
+					*pRvaApi = *pVaApi - reinterpret_cast<std::uintptr_t>( hModule );
+					*pVaApi = *pRvaApi + pModule->uModBase;
 				}
 			}
 			else {
-				LOGS( "findApiByModule :: vaApi == nullptr, should never happen %s", searchFunctionName );
+				LOGS( "findApiByModule :: pVaApi == nullptr, should never happen %s", pSearchFunctionName );
 			}
 		}
 		else {
@@ -363,13 +365,13 @@ void ApiReader::findApiByModule( ModuleInfo* pModule, const char* searchFunction
 	}
 	else {
 		// Search API in external process
-		findApiInProcess( pModule, searchFunctionName, ordinal, vaApi, rvaApi );
+		findApiInProcess( pModule, pSearchFunctionName, uOrdinal, pVaApi, pRvaApi );
 	}
 }
 
 bool ApiReader::isModuleLoadedInOwnProcess( ModuleInfo* pModule ) {
-	for ( const auto& module : ownModuleList ) {
-		if ( !_wcsicmp( pModule->fullPath, module.fullPath ) ) {
+	for ( const auto& Module : vOwnModuleList ) {
+		if ( !_wcsicmp( pModule->pModulePath, Module.pModulePath ) ) {
 			return true;
 		}
 	}
@@ -381,10 +383,10 @@ void ApiReader::parseModuleWithOwnProcess( ModuleInfo* pModule ) {
 
 	if ( hModule ) {
 		auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( hModule );
-		auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<DWORD_PTR>( hModule ) + pDosHeader->e_lfanew );
+		auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( hModule ) + pDosHeader->e_lfanew );
 
 		if ( isPeAndExportTableValid( pNtHeader ) ) {
-			parseExportTable( pModule, pNtHeader, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( reinterpret_cast<DWORD_PTR>( hModule ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ), reinterpret_cast<DWORD_PTR>( hModule ) );
+			parseExportTable( pModule, pNtHeader, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( reinterpret_cast<std::uintptr_t>( hModule ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ), reinterpret_cast<std::uintptr_t>( hModule ) );
 		}
 	}
 	else {
@@ -405,56 +407,58 @@ bool ApiReader::isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader ) {
 	return true;
 }
 
-void ApiReader::findApiInProcess( ModuleInfo* pModule, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi )
+void ApiReader::findApiInProcess( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
-	std::unique_ptr<BYTE[ ]> bufferHeader = getHeaderFromProcess( pModule );
+	std::unique_ptr<std::uint8_t[ ]> pBufferHeader = getHeaderFromProcess( pModule );
 
-	if ( !bufferHeader )
+	if ( !pBufferHeader )
 		return;
 
-	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( bufferHeader.get( ) );
-	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<DWORD_PTR>( bufferHeader.get( ) ) + pDosHeader->e_lfanew );
+	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pBufferHeader.get( ) );
+	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( pBufferHeader.get( ) ) + pDosHeader->e_lfanew );
 
 	if ( isPeAndExportTableValid( pNtHeader ) )
 	{
-		std::unique_ptr<BYTE[ ]> bufferExportTable = getExportTableFromProcess( pModule, pNtHeader );
+		std::unique_ptr<std::uint8_t[ ]> pBufferExportTable = getExportTableFromProcess( pModule, pNtHeader );
 
-		if ( bufferExportTable )
+		if ( pBufferExportTable )
 		{
-			findApiInExportTable( pModule, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( bufferExportTable.get( ) ), 
-				reinterpret_cast<DWORD_PTR>( bufferExportTable.get( ) ) - pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress, searchFunctionName, ordinal, vaApi, rvaApi );
+			findApiInExportTable( pModule, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( pBufferExportTable.get( ) ),
+				reinterpret_cast<std::uintptr_t>( pBufferExportTable.get( ) ) -
+				pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress,
+				pSearchFunctionName, uOrdinal, pVaApi, pRvaApi );
 		}
 	}
 }
 
-bool ApiReader::findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, DWORD_PTR deltaAddress, const char* searchFunctionName, WORD ordinal, DWORD_PTR* vaApi, DWORD_PTR* rvaApi )
+bool ApiReader::findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
-	auto addressOfFunctionsArray = reinterpret_cast<DWORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfFunctions ) + deltaAddress );
-	auto addressOfNamesArray = reinterpret_cast<DWORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfNames ) + deltaAddress );
-	auto addressOfNameOrdinalsArray = reinterpret_cast<WORD*>( static_cast<DWORD_PTR>( pExportDir->AddressOfNameOrdinals ) + deltaAddress );
+	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
+	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
+	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
 
-	if ( searchFunctionName )
+	if ( pSearchFunctionName )
 	{
-		for ( DWORD i = 0; i < pExportDir->NumberOfNames; i++ )
+		for ( std::uint32_t i = 0; i < pExportDir->NumberOfNames; i++ )
 		{
-			auto functionName = reinterpret_cast<char*>( addressOfNamesArray[ i ] + deltaAddress );
+			auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + uDeltaAddress );
 
-			if ( !strcmp( functionName, searchFunctionName ) )
+			if ( !strcmp( pFuncName, pSearchFunctionName ) )
 			{
-				*rvaApi = addressOfFunctionsArray[ addressOfNameOrdinalsArray[ i ] ];
-				*vaApi = addressOfFunctionsArray[ addressOfNameOrdinalsArray[ i ] ] + pModule->modBaseAddr;
+				*pRvaApi = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
+				*pVaApi = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ] + pModule->uModBase;
 				return true;
 			}
 		}
 	}
 	else
 	{
-		for ( DWORD i = 0; i < pExportDir->NumberOfFunctions; i++ )
+		for ( std::uint32_t i = 0; i < pExportDir->NumberOfFunctions; i++ )
 		{
-			if ( ordinal == ( i + pExportDir->Base ) )
+			if ( uOrdinal == ( i + pExportDir->Base ) )
 			{
-				*rvaApi = addressOfFunctionsArray[ i ];
-				*vaApi = addressOfFunctionsArray[ i ] + pModule->modBaseAddr;
+				*pRvaApi = pAddressOfFuncs[ i ];
+				*pVaApi = pAddressOfFuncs[ i ] + pModule->uModBase;
 				return true;
 			}
 		}
@@ -464,37 +468,37 @@ bool ApiReader::findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTO
 }
 
 void ApiReader::setModulePriority( ModuleInfo* pModule ) {
-	const WCHAR* moduleFileName = pModule->getFilename( );
+	const wchar_t* pModuleFileName = pModule->getFilename( );
 
-	if ( !_wcsicmp( moduleFileName, L"kernelbase.dll" ) ) {
-		pModule->priority = -1;
+	if ( !_wcsicmp( pModuleFileName, L"kernelbase.dll" ) ) {
+		pModule->nPriority = -1;
 	}
-	else if ( !_wcsicmp( moduleFileName, L"ntdll.dll" ) 
-		|| !_wcsicmp( moduleFileName, L"shlwapi.dll" ) 
-		|| !_wcsicmp( moduleFileName, L"ShimEng.dll" ) 
-		|| !_wcsnicmp( moduleFileName, L"API-", 4 ) 
-		|| !_wcsnicmp( moduleFileName, L"EXT-", 4 ) ) {
-		pModule->priority = 0;
+	else if ( !_wcsicmp( pModuleFileName, L"ntdll.dll" )
+		|| !_wcsicmp( pModuleFileName, L"shlwapi.dll" )
+		|| !_wcsicmp( pModuleFileName, L"ShimEng.dll" )
+		|| !_wcsnicmp( pModuleFileName, L"API-", 4 )
+		|| !_wcsnicmp( pModuleFileName, L"EXT-", 4 ) ) {
+		pModule->nPriority = 0;
 	}
-	else if ( !_wcsicmp( moduleFileName, L"kernel32.dll" ) ) {
-		pModule->priority = 2;
+	else if ( !_wcsicmp( pModuleFileName, L"kernel32.dll" ) ) {
+		pModule->nPriority = 2;
 	}
 	else {
-		pModule->priority = 1;
+		pModule->nPriority = 1;
 	}
 }
 
-bool ApiReader::isApiAddressValid( DWORD_PTR virtualAddress )
+bool ApiReader::isApiAddressValid( std::uintptr_t uVirtualAddress )
 {
-	return apiList.count( virtualAddress ) > 0;
+	return mpApiList.count( uVirtualAddress ) > 0;
 }
 
-ApiInfo* ApiReader::getApiByVirtualAddress( DWORD_PTR virtualAddress, bool* isSuspect ) {
+ApiInfo* ApiReader::getApiByVirtualAddress( std::uintptr_t uVirtualAddress, bool* pIsSuspect ) {
 
-	*isSuspect = false;
-	auto range = apiList.equal_range( virtualAddress );
+	*pIsSuspect = false;
+	auto range = mpApiList.equal_range( uVirtualAddress );
 
-	size_t countDuplicates = std::distance( range.first, range.second );
+	std::size_t countDuplicates = std::distance( range.first, range.second );
 
 	if ( countDuplicates == 0 ) {
 		return nullptr;
@@ -506,277 +510,282 @@ ApiInfo* ApiReader::getApiByVirtualAddress( DWORD_PTR virtualAddress, bool* isSu
 	else {
 		auto& it = range.first;
 
-		// any high priority with a name
-		auto apiFound = getScoredApi( it, countDuplicates, true, false, false, true, false, false, false, false );
-		if ( apiFound ) return apiFound;
+		// any high nPriority with a name
+		auto pApiFound = getScoredApi( it, countDuplicates, true, false, false, true, false, false, false, false );
+		if ( pApiFound ) return pApiFound;
 
-		*isSuspect = true;
+		*pIsSuspect = true;
 
-		// high priority with a name and ansi/unicode name
-		apiFound = getScoredApi( it, countDuplicates, true, true, false, true, false, false, false, false );
-		if ( apiFound ) return apiFound;
+		// high nPriority with a name and ansi/unicode name
+		pApiFound = getScoredApi( it, countDuplicates, true, true, false, true, false, false, false, false );
+		if ( pApiFound ) return pApiFound;
 
-		// priority 2 with no underline in name
-		apiFound = getScoredApi( it, countDuplicates, true, false, true, false, false, false, true, false );
-		if ( apiFound ) return apiFound;
+		// nPriority 2 with no underline in name
+		pApiFound = getScoredApi( it, countDuplicates, true, false, true, false, false, false, true, false );
+		if ( pApiFound ) return pApiFound;
 
-		// priority 1 with a name
-		apiFound = getScoredApi( it, countDuplicates, true, false, false, false, false, true, false, false );
-		if ( apiFound ) return apiFound;
+		// nPriority 1 with a name
+		pApiFound = getScoredApi( it, countDuplicates, true, false, false, false, false, true, false, false );
+		if ( pApiFound ) return pApiFound;
 
 		// with a name
-		apiFound = getScoredApi( it, countDuplicates, true, false, false, false, false, false, false, false );
-		if ( apiFound ) return apiFound;
+		pApiFound = getScoredApi( it, countDuplicates, true, false, false, false, false, false, false, false );
+		if ( pApiFound ) return pApiFound;
 
-		// any with priority, name, ansi/unicode
-		apiFound = getScoredApi( it, countDuplicates, true, true, false, true, false, false, false, true );
-		if ( apiFound ) return apiFound;
+		// any with nPriority, name, ansi/unicode
+		pApiFound = getScoredApi( it, countDuplicates, true, true, false, true, false, false, false, true );
+		if ( pApiFound ) return pApiFound;
 
-		// any with priority
-		apiFound = getScoredApi( it, countDuplicates, false, false, false, true, false, false, false, true );
-		if ( apiFound ) return apiFound;
+		// any with nPriority
+		pApiFound = getScoredApi( it, countDuplicates, false, false, false, true, false, false, false, true );
+		if ( pApiFound ) return pApiFound;
 
 		// has prio 0 and name
-		apiFound = getScoredApi( it, countDuplicates, false, false, false, false, true, false, false, true );
-		if ( apiFound ) return apiFound;
+		pApiFound = getScoredApi( it, countDuplicates, false, false, false, false, true, false, false, true );
+		if ( pApiFound ) return pApiFound;
 	}
 
 	// is never reached
-	LOGS_DEBUG( "getApiByVirtualAddress :: There is an API resolving bug, VA: " PRINTF_DWORD_PTR_FULL_S, virtualAddress );
+	LOGS_DEBUG( "getApiByVirtualAddress :: There is an API resolving bug, VA: " PRINTF_DWORD_PTR_FULL_S, uVirtualAddress );
 
 	for ( auto& it = range.first; it != range.second; ++it ) {
-		auto apiFound = it->second;
-		LOGS_DEBUG( "-> Possible API: %s ord: %d ", apiFound->name.c_str( ), apiFound->ordinal );
+		auto pApiFound = it->second;
+		LOGS_DEBUG( "-> Possible API: %s ord: %d ", pApiFound->name.c_str( ), pApiFound->uOrdinal );
 	}
 
 	return reinterpret_cast<ApiInfo*>( 1 );
 }
 
-ApiInfo* ApiReader::getScoredApi( stdext::hash_multimap<DWORD_PTR, ApiInfo*>::iterator it, size_t countDuplicates, bool hasName, bool hasUnicodeAnsiName, bool hasNoUnderlineInName, bool hasPrioDll, bool hasPrio0Dll, bool hasPrio1Dll, bool hasPrio2Dll, bool firstWin ) {
+ApiInfo* ApiReader::getScoredApi( stdext::hash_multimap<std::uintptr_t, ApiInfo*>::iterator it, std::size_t szCountDuplicates,
+	bool bHasName, bool bHasUnicodeAnsiName,
+	bool bHasNoUnderlineInName, bool bHasPrioDll, bool bHasPrio0Dll, bool bHasPrio1Dll, bool bHasPrio2Dll, bool bFirstWin ) {
+
 	ApiInfo* foundMatchingApi = nullptr;
-	int countFoundApis = 0;
-	int scoreNeeded = hasName + hasUnicodeAnsiName + hasNoUnderlineInName + hasPrioDll + hasPrio0Dll + hasPrio1Dll + hasPrio2Dll;
+	int nCountFoundApis = 0;
+	int nScoreNeeded = bHasName + bHasUnicodeAnsiName + bHasNoUnderlineInName + bHasPrioDll + bHasPrio0Dll + bHasPrio1Dll + bHasPrio2Dll;
 
-	for ( size_t i = 0; i < countDuplicates; ++i, ++it ) {
-		ApiInfo* foundApi = it->second;
-		int scoreValue = 0;
+	for ( std::size_t i = 0; i < szCountDuplicates; ++i, ++it ) {
+		ApiInfo* pFoundApi = it->second;
+		int nScoreValue = 0;
 
-		if ( hasName && foundApi->name[ 0 ] != '\0' ) {
-			++scoreValue;
-			if ( hasUnicodeAnsiName ) {
-				size_t apiNameLength = std::strlen( foundApi->name );
-				if ( foundApi->name[ apiNameLength - 1 ] == 'W' || foundApi->name[ apiNameLength - 1 ] == 'A' ) {
-					++scoreValue;
+		if ( bHasName && pFoundApi->name[ 0 ] != '\0' ) {
+			++nScoreValue;
+			if ( bHasUnicodeAnsiName ) {
+				std::size_t szApiNameLength = std::strlen( pFoundApi->name );
+				if ( pFoundApi->name[ szApiNameLength - 1 ] == 'W' || pFoundApi->name[ szApiNameLength - 1 ] == 'A' ) {
+					++nScoreValue;
 				}
 			}
-			if ( hasNoUnderlineInName && !std::strrchr( foundApi->name, '_' ) ) {
-				++scoreValue;
+			if ( bHasNoUnderlineInName && !std::strrchr( pFoundApi->name, '_' ) ) {
+				++nScoreValue;
 			}
 		}
 
-		if ( hasPrioDll && foundApi->module->priority >= 1 ) ++scoreValue;
-		if ( hasPrio0Dll && foundApi->module->priority == 0 ) ++scoreValue;
-		if ( hasPrio1Dll && foundApi->module->priority == 1 ) ++scoreValue;
-		if ( hasPrio2Dll && foundApi->module->priority == 2 ) ++scoreValue;
+		if ( bHasPrioDll && pFoundApi->pModule->nPriority >= 1 ) ++nScoreValue;
+		if ( bHasPrio0Dll && pFoundApi->pModule->nPriority == 0 ) ++nScoreValue;
+		if ( bHasPrio1Dll && pFoundApi->pModule->nPriority == 1 ) ++nScoreValue;
+		if ( bHasPrio2Dll && pFoundApi->pModule->nPriority == 2 ) ++nScoreValue;
 
-		if ( scoreValue == scoreNeeded ) {
-			foundMatchingApi = foundApi;
-			++countFoundApis;
-			if ( firstWin ) return foundMatchingApi;
+		if ( nScoreValue == nScoreNeeded ) {
+			foundMatchingApi = pFoundApi;
+			++nCountFoundApis;
+			if ( bFirstWin ) return foundMatchingApi;
 		}
 	}
 
-	return countFoundApis == 1 ? foundMatchingApi : nullptr;
+	return nCountFoundApis == 1 ? foundMatchingApi : nullptr;
 }
 
-void ApiReader::setMinMaxApiAddress( DWORD_PTR virtualAddress )
+void ApiReader::setMinMaxApiAddress( std::uintptr_t uVirtualAddress )
 {
-	if ( virtualAddress == 0 || virtualAddress == static_cast<DWORD_PTR>( -1 ) )
+	if ( uVirtualAddress == 0 || uVirtualAddress == static_cast<std::uintptr_t>( -1 ) )
 		return;
 
-	if ( virtualAddress < minApiAddress )
+	if ( uVirtualAddress < uMinApiAddress )
 	{
-		LOGS( "virtualAddress %p < minApiAddress %p", virtualAddress, minApiAddress );
-		minApiAddress = virtualAddress - 1;
+		LOGS( "uVirtualAddress %p < uMinApiAddress %p", uVirtualAddress, uMinApiAddress );
+		uMinApiAddress = uVirtualAddress - 1;
 	}
-	if ( virtualAddress > maxApiAddress )
+	if ( uVirtualAddress > uMaxApiAddress )
 	{
-		maxApiAddress = virtualAddress + 1;
+		uMaxApiAddress = uVirtualAddress + 1;
 	}
 }
 
-void ApiReader::readAndParseIAT( DWORD_PTR addressIAT, DWORD sizeIAT, std::map<DWORD_PTR, ImportModuleThunk>& moduleListNew )
+void ApiReader::readAndParseIAT( std::uintptr_t uAddressIAT, std::uint32_t uSizeIAT, std::map<std::uintptr_t, ImportModuleThunk>& mpModuleListNew )
 {
-	moduleThunkList = &moduleListNew;
-	auto dataIat = std::make_unique<BYTE[ ]>( sizeIAT );
-	if ( readMemoryFromProcess( addressIAT, sizeIAT, dataIat.get( ) ) )
+	mpModuleThunkList = &mpModuleListNew;
+
+	auto pDataIat = std::make_unique<std::uint8_t[ ]>( uSizeIAT );
+
+	if ( readMemoryFromProcess( uAddressIAT, uSizeIAT, pDataIat.get( ) ) )
 	{
-		parseIAT( addressIAT, dataIat.get( ), sizeIAT );
+		parseIAT( uAddressIAT, pDataIat.get( ), uSizeIAT );
 	}
 	else
 	{
-		LOGS( "ApiReader::readAndParseIAT :: error reading iat " PRINTF_DWORD_PTR_FULL_S, addressIAT );
+		LOGS( "ApiReader::readAndParseIAT :: error reading iat " PRINTF_DWORD_PTR_FULL_S, uAddressIAT );
 	}
 }
 
-void ApiReader::parseIAT( DWORD_PTR addressIAT, BYTE* iatBuffer, SIZE_T size )
+void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, std::size_t szSize )
 {
-	std::span<DWORD_PTR> iatSpan( reinterpret_cast<DWORD_PTR*>( iatBuffer ), size / sizeof( DWORD_PTR ) );
+	std::span<std::uintptr_t> iatSpan( reinterpret_cast<std::uintptr_t*>( pIatBuffer ), szSize / sizeof( std::uintptr_t ) );
 
 	ModuleInfo* pModule = nullptr;
 	bool isSuspect = false;
-	int countApiFound = 0, countApiNotFound = 0;
+	int nCountApiFound = 0, nCountApiNotFound = 0;
 
-	for ( auto& address : iatSpan )
+	for ( auto& uAddress : iatSpan )
 	{
-		if ( !isInvalidMemoryForIat( address ) )
+		if ( !isInvalidMemoryForIat( uAddress ) )
 		{
-			LOGS( "min %p max %p address %p", minApiAddress, maxApiAddress, address );
+			LOGS( "min %p max %p uAddress %p", uMinApiAddress, uMaxApiAddress, uAddress );
 
-			if ( address > minApiAddress && address < maxApiAddress )
+			if ( uAddress > uMinApiAddress && uAddress < uMaxApiAddress )
 			{
-				auto apiFound = getApiByVirtualAddress( address, &isSuspect );
+				auto pApiFound = getApiByVirtualAddress( uAddress, &isSuspect );
 
-				LOGS( "apiFound %p address %p", apiFound, address );
+				LOGS( "pApiFound %p uAddress %p", pApiFound, uAddress );
 
-				if ( apiFound == nullptr )
+				if ( pApiFound == nullptr )
 				{
-					LOGS_DEBUG( "getApiByVirtualAddress :: No Api found " PRINTF_DWORD_PTR_FULL_S, address );
+					LOGS_DEBUG( "getApiByVirtualAddress :: No Api found " PRINTF_DWORD_PTR_FULL_S, uAddress );
 				}
-				else if ( apiFound == reinterpret_cast<ApiInfo*>( 1 ) )
+				else if ( pApiFound == reinterpret_cast<ApiInfo*>( 1 ) )
 				{
-					LOGS( "apiFound == reinterpret_cast<ApiInfo*>( 1 ) -> " PRINTF_DWORD_PTR_FULL_S, address );
+					LOGS( "pApiFound == reinterpret_cast<ApiInfo*>( 1 ) -> " PRINTF_DWORD_PTR_FULL_S, uAddress );
 				}
 				else
 				{
-					countApiFound++;
-					LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " %ls %d %s", apiFound->va, apiFound->module->getFilename( ), apiFound->ordinal, apiFound->name );
+					nCountApiFound++;
+					LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " %ls %d %s", pApiFound->VA, pApiFound->pModule->getFilename( ), pApiFound->uOrdinal, pApiFound->name );
 
-					DWORD_PTR iatEntryAddress = addressIAT + reinterpret_cast<DWORD_PTR>( &address ) - reinterpret_cast<DWORD_PTR>( iatBuffer );
-					if ( pModule != apiFound->module )
+					std::uintptr_t uIatEntryAddress = uAddressIAT + reinterpret_cast<std::uintptr_t>( &uAddress ) - reinterpret_cast<std::uintptr_t>( pIatBuffer );
+					if ( pModule != pApiFound->pModule )
 					{
-						pModule = apiFound->module;
-						addFoundApiToModuleList( iatEntryAddress, apiFound, true, isSuspect );
+						pModule = pApiFound->pModule;
+						addFoundApiToModuleList( uIatEntryAddress, pApiFound, true, isSuspect );
 					}
 					else
 					{
-						addFoundApiToModuleList( iatEntryAddress, apiFound, false, isSuspect );
+						addFoundApiToModuleList( uIatEntryAddress, pApiFound, false, isSuspect );
 					}
 				}
 			}
 			else
 			{
-				countApiNotFound++;
-				addNotFoundApiToModuleList( addressIAT + reinterpret_cast<DWORD_PTR>( &address ) - reinterpret_cast<DWORD_PTR>( iatBuffer ), address );
+				nCountApiNotFound++;
+				addNotFoundApiToModuleList( uAddressIAT + reinterpret_cast<std::uintptr_t>( &uAddress ) - reinterpret_cast<std::uintptr_t>( pIatBuffer ), uAddress );
 			}
 		}
 	}
 
-	LOGS_DEBUG( "IAT parsing finished, found %d valid APIs, missed %d APIs", countApiFound, countApiNotFound );
+	LOGS_DEBUG( "IAT parsing finished, found %d valid APIs, missed %d APIs", nCountApiFound, nCountApiNotFound );
 }
 
-void ApiReader::addFoundApiToModuleList( DWORD_PTR iatAddressVA, ApiInfo* apiFound, bool isNewModule, bool isSuspect )
+void ApiReader::addFoundApiToModuleList( std::uintptr_t uIatAddressVA, ApiInfo* pApiFound, bool isNewModule, bool isSuspect )
 {
 	if ( isNewModule )
 	{
-		addModuleToModuleList( apiFound->module->getFilename( ), iatAddressVA - targetImageBase );
+		addModuleToModuleList( pApiFound->pModule->getFilename( ), uIatAddressVA - uTargetImageBase );
 	}
-	addFunctionToModuleList( apiFound, iatAddressVA, iatAddressVA - targetImageBase, apiFound->ordinal, true, isSuspect );
+	addFunctionToModuleList( pApiFound, uIatAddressVA, uIatAddressVA - uTargetImageBase, pApiFound->uOrdinal, true, isSuspect );
 }
 
-bool ApiReader::addModuleToModuleList( const WCHAR* moduleName, DWORD_PTR firstThunk )
+bool ApiReader::addModuleToModuleList( const wchar_t* pModuleName, std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk pModule;
+	ImportModuleThunk ModuleThunk;
 
-	pModule.firstThunk = firstThunk;
-	wcscpy_s( pModule.moduleName, moduleName );
+	ModuleThunk.uFirstThunk = uFirstThunk;
+	wcscpy_s( ModuleThunk.pModuleName, pModuleName );
 
-	( *moduleThunkList ).insert( std::pair<DWORD_PTR, ImportModuleThunk>( firstThunk, pModule ) );
+	( *mpModuleThunkList ).insert( std::pair<std::uintptr_t, ImportModuleThunk>( uFirstThunk, ModuleThunk ) );
 
 	return true;
 }
 
-void ApiReader::addUnknownModuleToModuleList( DWORD_PTR firstThunk )
+void ApiReader::addUnknownModuleToModuleList( std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk pModule;
+	ImportModuleThunk ModuleThunk;
 
-	pModule.firstThunk = firstThunk;
-	wcscpy_s( pModule.moduleName, L"?" );
+	ModuleThunk.uFirstThunk = uFirstThunk;
+	wcscpy_s( ModuleThunk.pModuleName, L"?" );
 
-	( *moduleThunkList ).insert( std::pair<DWORD_PTR, ImportModuleThunk>( firstThunk, pModule ) );
+	( *mpModuleThunkList ).insert( std::pair<std::uintptr_t, ImportModuleThunk>( uFirstThunk, ModuleThunk ) );
 }
 
-bool ApiReader::addFunctionToModuleList( ApiInfo* apiFound, DWORD_PTR va, DWORD_PTR rva, WORD ordinal, bool valid, bool suspect ) {
-	if ( !moduleThunkList || moduleThunkList->empty( ) ) {
-		LOGS( "ImportsHandling::addFunction moduleThunkList is empty" );
+bool ApiReader::addFunctionToModuleList( ApiInfo* pApiFound, std::uintptr_t VA, std::uintptr_t RVA, std::uint16_t uOrdinal, bool valid, bool suspect ) {
+	if ( !mpModuleThunkList || mpModuleThunkList->empty( ) ) {
+		LOGS( "ImportsHandling::addFunction mpModuleThunkList is empty" );
 		return false;
 	}
 
-	auto pModule = findModuleForRVA( rva );
+	auto pModule = findModuleForRVA( RVA );
 	if ( !pModule ) {
-		LOGS( "ImportsHandling::addFunction pModule not found rva " PRINTF_DWORD_PTR_FULL_S, rva );
+		LOGS( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL_S, RVA );
 		return false;
 	}
 
-	ImportThunk pImport{
-		.va = va,
-		.rva = rva,
-		.ordinal = ordinal,
-		.apiAddressVA = apiFound->va,
-		.hint = static_cast<WORD>( apiFound->hint ),
-		.valid = valid,
-		.suspect = suspect,
+	ImportThunk pImport {
+		.uVA = VA,
+		.uRVA = RVA,
+		.uOrdinal = uOrdinal,
+		.uApiAddressVA = pApiFound->uVA,
+		.uHint = static_cast<std::uint16_t>( pApiFound->uHint ),
+		.bValid = valid,
+		.bSuspect = suspect,
 	};
 
-	wcscpy_s( pImport.moduleName, apiFound->module->getFilename( ) );
-	strcpy_s( pImport.name, apiFound->name );
+	wcscpy_s( pImport.pModuleName, pApiFound->pModule->getFilename( ) );
+	strcpy_s( pImport.name, pApiFound->name );
 
-	pModule->thunkList.insert( { pImport.rva, pImport } );
+	pModule->mpThunkList.insert( { pImport.uRVA, pImport } );
 
 	return true;
 }
 
-bool ApiReader::addNotFoundApiToModuleList( DWORD_PTR iatAddressVA, DWORD_PTR apiAddress ) {
-	if ( !moduleThunkList || moduleThunkList->empty( ) ) {
-		addUnknownModuleToModuleList( iatAddressVA - targetImageBase );
+bool ApiReader::addNotFoundApiToModuleList( std::uintptr_t uIatAddressVA, std::uintptr_t uApiAddress ) {
+	if ( !mpModuleThunkList || mpModuleThunkList->empty( ) ) {
+		addUnknownModuleToModuleList( uIatAddressVA - uTargetImageBase );
 	}
 
-	DWORD_PTR rva = iatAddressVA - targetImageBase;
-	auto pModule = findModuleForRVA( rva, true );
+	std::uintptr_t RVA = uIatAddressVA - uTargetImageBase;
+	auto pModule = findModuleForRVA( RVA, true );
 
 	if ( !pModule ) {
-		LOGS( "ImportsHandling::addFunction pModule not found rva " PRINTF_DWORD_PTR_FULL_S, rva );
+		LOGS( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL_S, RVA );
 		return false;
 	}
 
-	ImportThunk pImport{
-		.moduleName = L"?",
+	ImportThunk pImport {
+		.pModuleName = L"?",
 		.name = "?",
-		.va = iatAddressVA,
-		.rva = rva,
-		.ordinal = 0,
-		.apiAddressVA = apiAddress,
-		.valid = false,
-		.suspect = true
+		.uVA = uIatAddressVA,
+		.uRVA = RVA,
+		.uOrdinal = 0,
+		.uApiAddressVA = uApiAddress,
+		.bValid = false,
+		.bSuspect = true
 	};
 
-	pModule->thunkList.insert( { pImport.rva, pImport } );
+	pModule->mpThunkList.insert( { pImport.uRVA, pImport } );
 
 	return true;
 }
 
-ImportModuleThunk* ApiReader::findModuleForRVA( DWORD_PTR rva, bool addUnknownModuleIfNeeded ) {
-	auto it = std::find_if( moduleThunkList->begin( ), moduleThunkList->end( ),
-		[ rva ]( const auto& pair ) { return rva >= pair.second.firstThunk; } );
+ImportModuleThunk* ApiReader::findModuleForRVA( std::uintptr_t RVA, bool addUnknownModuleIfNeeded ) {
+	auto it = std::find_if( mpModuleThunkList->begin( ), mpModuleThunkList->end( ),
+		[RVA]( const auto& pair ) { return RVA >= pair.second.uFirstThunk; } );
 
-	if ( it == moduleThunkList->end( ) || ( rva < it->second.firstThunk && it != moduleThunkList->begin( ) ) ) {
-		--it; // Adjust iterator to point to the correct module
+	if ( it == mpModuleThunkList->end( ) || ( RVA < it->second.uFirstThunk && it != mpModuleThunkList->begin( ) ) ) {
+		--it; // Adjust iterator to point to the correct pModule
 	}
 
-	if ( it == moduleThunkList->end( ) || ( addUnknownModuleIfNeeded && it->second.moduleName[ 0 ] != L'?' ) ) {
+	if ( it == mpModuleThunkList->end( ) || ( addUnknownModuleIfNeeded && it->second.pModuleName[ 0 ] != L'?' ) ) {
 		if ( addUnknownModuleIfNeeded ) {
-			addUnknownModuleToModuleList( rva );
-			return &moduleThunkList->find( rva )->second;
+			addUnknownModuleToModuleList( RVA );
+			return &mpModuleThunkList->find( RVA )->second;
 		}
 		return nullptr;
 	}
@@ -784,37 +793,37 @@ ImportModuleThunk* ApiReader::findModuleForRVA( DWORD_PTR rva, bool addUnknownMo
 	return &it->second;
 }
 
-void ApiReader::clearAll() {
-    minApiAddress = static_cast<DWORD_PTR>(-1);
-    maxApiAddress = 0;
+void ApiReader::clearAll( ) {
+	uMinApiAddress = static_cast<std::uintptr_t>( -1 );
+	uMaxApiAddress = 0;
 
-    for (auto& [key, apiInfo] : apiList) {
-        delete apiInfo;
-    }
-    apiList.clear();
+	for ( auto& [key, apiInfo] : mpApiList ) {
+		delete apiInfo;
+	}
+	mpApiList.clear( );
 
-    if (moduleThunkList != nullptr) {
-        moduleThunkList->clear();
-    }
+	if ( mpModuleThunkList != nullptr ) {
+		mpModuleThunkList->clear( );
+	}
 }
 
-bool ApiReader::isApiBlacklisted(const char* functionName) {
-    return SystemInformation::currenOS < WIN_VISTA_32 && !strcmp(functionName, "RestoreLastError");
+bool ApiReader::isApiBlacklisted( const char* pFuncName ) {
+	return SystemInformation::currenOS < WIN_VISTA_32 && !strcmp( pFuncName, "RestoreLastError" );
 }
 
-bool ApiReader::isWinSxSModule(ModuleInfo* pModule) {
-    const wchar_t* fullPath = pModule->fullPath;
-    return wcsstr(fullPath, L"\\WinSxS\\") || wcsstr(fullPath, L"\\winsxs\\");
+bool ApiReader::isWinSxSModule( ModuleInfo* pModule ) {
+	const wchar_t* pModulePath = pModule->pModulePath;
+	return wcsstr( pModulePath, L"\\WinSxS\\" ) || wcsstr( pModulePath, L"\\winsxs\\" );
 }
 
-bool ApiReader::isInvalidMemoryForIat(DWORD_PTR address) {
-    if (address == 0 || address == static_cast<DWORD_PTR>(-1))
-        return true;
+bool ApiReader::isInvalidMemoryForIat( std::uintptr_t uAddress ) {
+	if ( uAddress == 0 || uAddress == static_cast<std::uintptr_t>( -1 ) )
+		return true;
 
-    MEMORY_BASIC_INFORMATION memBasic{};
+	MEMORY_BASIC_INFORMATION memBasic {};
 
-    if (ApiTools::VirtualQueryEx(ProcessAccessHelp::hProcess, reinterpret_cast<LPVOID>(address), &memBasic, sizeof(MEMORY_BASIC_INFORMATION))) {
-        return !(memBasic.State == MEM_COMMIT && ProcessAccessHelp::isPageAccessable(memBasic.Protect));
-    }
-    return true;
+	if ( ApiTools::VirtualQueryEx( ProcessAccessHelp::hProcess, reinterpret_cast<LPVOID>( uAddress ), &memBasic, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
+		return !( memBasic.State == MEM_COMMIT && ProcessAccessHelp::isPageAccessable( memBasic.Protect ) );
+	}
+	return true;
 }

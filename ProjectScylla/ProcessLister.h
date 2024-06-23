@@ -9,16 +9,16 @@
 
 class Process {
 public:
-	DWORD PID;
-    DWORD sessionId;
-	DWORD_PTR imageBase;
-    DWORD_PTR pebAddress;
-	//DWORD entryPoint; //RVA without imagebase
-	DWORD imageSize;
-	WCHAR filename[MAX_PATH];
-	WCHAR fullPath[MAX_PATH];
+	std::uint32_t PID;
+	std::uint32_t uSessionId;
+	std::uintptr_t uImageBase;
+	std::uintptr_t uPebAddress;
+	//std::uint32_t uEntryPoint; //RVA without imagebase
+	std::uint32_t uImageSize;
+	wchar_t pFileName[ MAX_PATH ];
+	wchar_t pModulePath[ MAX_PATH ];
 
-	Process()
+	Process( )
 	{
 		PID = 0;
 	}
@@ -34,29 +34,29 @@ enum ProcessType {
 class ProcessLister {
 public:
 
-	ProcessLister()
+	ProcessLister( )
 	{
-		deviceNameResolver = new DeviceNameResolver();
+		pDeviceNameResolver = new DeviceNameResolver( );
 	}
-	~ProcessLister()
+	~ProcessLister( )
 	{
-		delete deviceNameResolver;
+		delete pDeviceNameResolver;
 	}
 
-	std::vector<Process>& getProcessList();
-	static bool isWindows64();
-	static DWORD setDebugPrivileges();
-    std::vector<Process>& getProcessListSnapshotNative();
+	std::vector<Process>& getProcessList( );
+	static bool isWindows64( );
+	static std::uint32_t setDebugPrivileges( );
+	std::vector<Process>& getProcessListSnapshotNative( );
 private:
-	std::vector<Process> processList;
+	std::vector<Process> vProcessList;
 
-	DeviceNameResolver * deviceNameResolver;
+	DeviceNameResolver* pDeviceNameResolver;
 
-	ProcessType checkIsProcess64(HANDLE hProcess);
+	ProcessType checkIsProcess64( HANDLE hProcess );
 
-	bool getAbsoluteFilePath(HANDLE hProcess, Process * process);
+	bool getAbsoluteFilePath( HANDLE hProcess, Process* pProcess );
 
-    void handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess );
-    void getProcessImageInformation( HANDLE hProcess, Process* process );
-    DWORD_PTR getPebAddressFromProcess( HANDLE hProcess );
+	void handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess );
+	void getProcessImageInformation( HANDLE hProcess, Process* pProcess );
+	std::uintptr_t getPebAddressFromProcess( HANDLE hProcess );
 };

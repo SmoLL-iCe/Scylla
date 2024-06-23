@@ -2,16 +2,17 @@
 #include <windows.h>
 #include <vector>
 #include <memory>
+#include <cstdint>
 
 class PeSection
 {
 public:
-	WCHAR name[ IMAGE_SIZEOF_SHORT_NAME + 1 ];
-	DWORD_PTR virtualAddress;
-	DWORD  virtualSize;
-	DWORD  rawAddress;
-	DWORD  rawSize;
-	DWORD characteristics;
+	wchar_t name[ IMAGE_SIZEOF_SHORT_NAME + 1 ];
+	std::uintptr_t uVirtualAddress;
+	std::uint32_t uVirtualSize;
+	std::uint32_t uRawAddress;
+	std::uint32_t uRawSize;
+	std::uint32_t uCharacteristics;
 
 	bool isDumped;
 
@@ -21,80 +22,80 @@ public:
 class PeFileSection {
 public:
 	IMAGE_SECTION_HEADER sectionHeader;
-	BYTE * data;
-	DWORD dataSize;
-	DWORD normalSize;
+	std::uint8_t* pData;
+	std::uint32_t uDataSize;
+	std::uint32_t uNormalSize;
 
-	PeFileSection()
+	PeFileSection( )
 	{
-		ZeroMemory(&sectionHeader, sizeof(IMAGE_SECTION_HEADER));
-		data = 0;
-		dataSize = 0;
-		normalSize = 0;
+		ZeroMemory( &sectionHeader, sizeof( IMAGE_SECTION_HEADER ) );
+		pData = nullptr;
+		uDataSize = 0;
+		uNormalSize = 0;
 	}
 };
 
 class PeParser
 {
 public:
-	PeParser(const WCHAR * file, bool readSectionHeaders = true);
-	PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders = true);
+	PeParser( const wchar_t* file, bool bReadSectionHeaders = true );
+	PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders = true );
 
-	~PeParser();
+	~PeParser( );
 
-	bool isValidPeFile() const;
-	bool isPE64() const;
-	bool isPE32() const;
+	bool isValidPeFile( ) const;
+	bool isPE64( ) const;
+	bool isPE32( ) const;
 
-	bool isTargetFileSamePeFormat() const;
+	bool isTargetFileSamePeFormat( ) const;
 
-	WORD getNumberOfSections() const;
-	std::vector<PeFileSection> & getSectionHeaderList();
+	std::uint16_t getNumberOfSections( ) const;
+	std::vector<PeFileSection>& getSectionHeaderList( );
 
-	bool hasExportDirectory();
-	bool hasTLSDirectory();
-	bool hasRelocationDirectory();
-	bool hasOverlayData();
+	bool hasExportDirectory( );
+	bool hasTLSDirectory( );
+	bool hasRelocationDirectory( );
+	bool hasOverlayData( );
 
-	DWORD getEntryPoint();
+	std::uint32_t getEntryPoint( );
 
-	bool getSectionNameUnicode(const int sectionIndex, WCHAR * output, const int outputLen);
+	bool getSectionNameUnicode( const int nSectionIndex, wchar_t* pOutput, const int outputLen );
 
-	DWORD getSectionHeaderBasedFileSize();
-	DWORD getSectionHeaderBasedSizeOfImage();
+	std::uint32_t getSectionHeaderBasedFileSize( );
+	std::uint32_t getSectionHeaderBasedSizeOfImage( );
 
-	bool readPeSectionsFromProcess();
-	bool readPeSectionsFromFile();
-	bool savePeFileToDisk(const WCHAR * newFile);
-	void removeDosStub();
-	void alignAllSectionHeaders();
-	void fixPeHeader();
-	void setDefaultFileAlignment();
-	bool dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR * dumpFilePath);
-	bool dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR * dumpFilePath, std::vector<PeSection> & sectionList);
+	bool readPeSectionsFromProcess( );
+	bool readPeSectionsFromFile( );
+	bool savePeFileToDisk( const wchar_t* pNewFile );
+	void removeDosStub( );
+	void alignAllSectionHeaders( );
+	void fixPeHeader( );
+	void setDefaultFileAlignment( );
+	bool dumpProcess( std::uintptr_t uModBase, std::uintptr_t uEntryPoint, const wchar_t* dumpFilePath );
+	bool dumpProcess( std::uintptr_t uModBase, std::uintptr_t uEntryPoint, const wchar_t* dumpFilePath, std::vector<PeSection>& sectionList );
 
-	void setEntryPointVa(DWORD_PTR entryPoint);
-	void setEntryPointRva(DWORD entryPoint);
+	void setEntryPointVa( std::uintptr_t uEntryPoint );
+	void setEntryPointRva( std::uint32_t uEntryPoint );
 
-	static bool updatePeHeaderChecksum(const WCHAR * targetFile, DWORD fileSize);
-	BYTE * getSectionMemoryByIndex(int index);
-	DWORD getSectionMemorySizeByIndex(int index);
-	int convertRVAToOffsetVectorIndex(DWORD_PTR dwRVA);
-	DWORD_PTR convertOffsetToRVAVector(DWORD_PTR dwOffset);
-	DWORD_PTR convertRVAToOffsetVector(DWORD_PTR dwRVA);
-	DWORD_PTR convertRVAToOffsetRelative(DWORD_PTR dwRVA);
-	DWORD getSectionAddressRVAByIndex( int index );
+	static bool updatePeHeaderChecksum( const wchar_t* targetFile, std::uint32_t uFileSize );
+	std::uint8_t* getSectionMemoryByIndex( int index );
+	std::uint32_t getSectionMemorySizeByIndex( int index );
+	int convertRVAToOffsetVectorIndex( std::uintptr_t uRVA );
+	std::uintptr_t convertOffsetToRVAVector( std::uintptr_t uOffset );
+	std::uintptr_t convertRVAToOffsetVector( std::uintptr_t uRVA );
+	std::uintptr_t convertRVAToOffsetRelative( std::uintptr_t uRVA );
+	std::uint32_t getSectionAddressRVAByIndex( int index );
 
-    PIMAGE_NT_HEADERS getCurrentNtHeader() const;
+	PIMAGE_NT_HEADERS getCurrentNtHeader( ) const;
 	IMAGE_DATA_DIRECTORY* getDirectory( const int directoryIndex );
 protected:
-	PeParser();
+	PeParser( );
 
 
-	static const DWORD FileAlignmentConstant = 0x200;
+	static const std::uint32_t FileAlignmentConstant = 0x200;
 
-	const WCHAR * filename;
-	DWORD_PTR moduleBaseAddress;
+	const wchar_t* pFileName;
+	std::uintptr_t uModuleBaseAddress;
 
 	/************************************************************************/
 	/* PE FILE                                                              */
@@ -106,53 +107,52 @@ protected:
 	/************************************************************************/
 
 	PIMAGE_DOS_HEADER pDosHeader;
-	BYTE * pDosStub; //between dos header and section header
-	DWORD dosStubSize;
+	std::uint8_t* pDosStub; //between dos header and section header
+	std::uint32_t uDosStubSize;
 	PIMAGE_NT_HEADERS32 pNTHeader32;
 	PIMAGE_NT_HEADERS64 pNTHeader64;
-	std::vector<PeFileSection> listPeSection;
-	BYTE * overlayData;
-	DWORD overlaySize;
+	std::vector<PeFileSection> vListPeSection;
+	std::uint8_t* pOverlayData;
+	std::uint32_t uOverlaySize;
 	/************************************************************************/
 
-	std::unique_ptr<BYTE[]> fileMemory;
-	std::unique_ptr<BYTE[ ]> headerMemory;
+	std::unique_ptr<std::uint8_t[ ]> pHeaderMemory;
 
 	HANDLE hFile;
-	DWORD fileSize;
+	std::uint32_t uFileSize;
 
-	bool readPeHeaderFromFile(bool readSectionHeaders);
-	bool readPeHeaderFromProcess(bool readSectionHeaders);
+	bool readPeHeaderFromFile( bool bReadSectionHeaders );
+	bool readPeHeaderFromProcess( bool bReadSectionHeaders );
 
-	bool hasDirectory(const int directoryIndex) const;
-	bool getSectionHeaders();
-	void getDosAndNtHeader(BYTE * memory, LONG size);
-	DWORD calcCorrectPeHeaderSize( bool readSectionHeaders ) const;
-	DWORD getInitialHeaderReadSize( bool readSectionHeaders );
-	bool openFileHandle();
-	void closeFileHandle();
-	void initClass();
-	
-	DWORD isMemoryNotNull( BYTE * data, int dataSize );
-	bool openWriteFileHandle( const WCHAR * newFile );
+	bool hasDirectory( const int directoryIndex ) const;
+	bool getSectionHeaders( );
+	void getDosAndNtHeader( std::uint8_t* pMemory, LONG size );
+	std::uint32_t calcCorrectPeHeaderSize( bool bReadSectionHeaders ) const;
+	std::uint32_t getInitialHeaderReadSize( bool bReadSectionHeaders );
+	bool openFileHandle( );
+	void closeFileHandle( );
+	void initClass( );
 
-	bool readPeSectionFromFile( DWORD readOffset, PeFileSection & peFileSection );
-	bool readPeSectionFromProcess( DWORD_PTR readOffset, PeFileSection & peFileSection );
+	std::uint32_t isMemoryNotNull( std::uint8_t* pData, int uDataSize );
+	bool openWriteFileHandle( const wchar_t* pNewFile );
 
-	bool readSectionFromProcess(const DWORD_PTR readOffset, PeFileSection & peFileSection );
-	bool readSectionFromFile(const DWORD readOffset, PeFileSection & peFileSection );
-	bool readSectionFrom(const DWORD_PTR readOffset, PeFileSection & peFileSection, const bool isProcess);
+	bool readPeSectionFromFile( std::uint32_t uReadOffset, PeFileSection& peFileSection );
+	bool readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection );
 
-	
-	DWORD_PTR getStandardImagebase();
+	bool readSectionFromProcess( const std::uintptr_t uReadOffset, PeFileSection& peFileSection );
+	bool readSectionFromFile( const std::uint32_t uReadOffset, PeFileSection& peFileSection );
+	bool readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess );
 
-	bool addNewLastSection(const CHAR * sectionName, DWORD sectionSize, BYTE * sectionData);
-	DWORD alignValue(DWORD badValue, DWORD alignTo);
 
-	void setNumberOfSections(WORD numberOfSections);
-	
-	void removeIatDirectory();
-	bool getFileOverlay();
-	
+	std::uintptr_t getStandardImagebase( ) const;
+
+	bool addNewLastSection( const char* pSectionName, std::uint32_t uSectionSize, std::uint8_t* pSectionData );
+	std::uint32_t alignValue( std::uint32_t uBadValue, std::uint32_t uAlignTo );
+
+	void setNumberOfSections( std::uint16_t uNumberOfSections );
+
+	void removeIatDirectory( );
+	bool getFileOverlay( );
+
 };
 

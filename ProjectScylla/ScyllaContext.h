@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <iostream>
 #include <string>
+#include <cstdint>
 #include "ProcessAccessHelp.h"
 #include "ProcessLister.h"
 #include "ApiReader.h"
@@ -28,33 +29,31 @@ public:
 	int setProcessById( std::uint32_t uProcessId );
 	void setDefaultFolder( const std::wstring& strNewFolder );
 
-	DWORD_PTR m_addressIAT;
-	DWORD m_sizeIAT;
+	std::uintptr_t m_addressIAT;
+	std::uint32_t m_sizeIAT;
 	ImportsHandling* getImportsHandling( );
 private:
 	void getPePreInfo( );
 	void checkSuspendProcess( );
-	bool isIATOutsidePeImage( DWORD_PTR addressIAT ) const;
+	bool isIATOutsidePeImage( std::uintptr_t uAddressIAT ) const;
 	bool getCurrentDefaultDumpFilename( );
 	bool getCurrentModulePath( std::wstring& outModulePath ) const;
-	void setDialogIATAddressAndSize( DWORD_PTR addressIAT, DWORD sizeIAT );
+	void setDialogIATAddressAndSize( std::uintptr_t uAddressIAT, std::uint32_t uSizeIAT );
 
-	bool isProcessSuspended = false;
-	ApiReader apiReader;
-	ProcessLister processLister;
-	Process processPtr = {};
-	IATReferenceScan iatReferenceScan;
-	ImportsHandling importsHandling;
+	bool m_isProcessSuspended = false;
+	ApiReader m_apiReader;
+	ProcessLister m_processLister;
+	Process m_processPtr = {};
+	IATReferenceScan m_iatReferenceScan;
+	ImportsHandling m_importsHandling;
 
 	int Status = 0;
 
-	DWORD_PTR m_entrypoint = 0;
+	std::uintptr_t m_entrypoint = 0;
 
 	bool m_bIsModule = false;
 
-	//std::uintptr_t m_uBaseModule = 0;
-	//std::uintptr_t m_uModuleSize = 0;
-	std::wstring strTargetFilePath = L"";
-	std::wstring strDumpFullFilePath = L"";
-	std::wstring strDumpFullFilePathScy = L"";
+	std::wstring m_strTargetFilePath = L"";
+	std::wstring m_strDumpFullFilePath = L"";
+	std::wstring m_strDumpFullFilePathScy = L"";
 };

@@ -7,27 +7,27 @@ class IATSearch : protected ApiReader
 {
 public:
 
-	DWORD_PTR memoryAddress;
-	SIZE_T memorySize;
+	std::uintptr_t uMemoryAddress;
+	std::size_t szMemorySize;
 
-	bool searchImportAddressTableInProcess(DWORD_PTR startAddress, DWORD_PTR* addressIAT, DWORD* sizeIAT, bool advanced);
+	bool searchImportAddressTableInProcess( std::uintptr_t uStartAddress, std::uintptr_t* uAddressIAT, std::uint32_t* uSizeIAT, bool advanced );
 
 private:
 
-	DWORD_PTR findAPIAddressInIAT(DWORD_PTR startAddress);
-	bool findIATAdvanced(DWORD_PTR startAddress,DWORD_PTR* addressIAT, DWORD* sizeIAT);
-	DWORD_PTR findNextFunctionAddress();
-	DWORD_PTR findIATPointer();
+	std::uintptr_t findAPIAddressInIAT( std::uintptr_t uStartAddress );
+	bool findIATAdvanced( std::uintptr_t uStartAddress, std::uintptr_t* uAddressIAT, std::uint32_t* uSizeIAT );
+	std::uintptr_t findNextFunctionAddress( );
+	std::uintptr_t findIATPointer( );
 
-	bool isIATPointerValid(DWORD_PTR iatPointer, bool checkRedirects);
+	bool isIATPointerValid( std::uintptr_t uIatPointer, bool bCheckRedirects );
 
-	bool findIATStartAndSize(DWORD_PTR address, DWORD_PTR * addressIAT, DWORD * sizeIAT);
+	bool findIATStartAndSize( std::uintptr_t uAddress, std::uintptr_t* uAddressIAT, std::uint32_t* uSizeIAT );
 
-	DWORD_PTR findIATStartAddress( DWORD_PTR baseAddress, DWORD_PTR startAddress, BYTE * dataBuffer );
-	DWORD findIATSize( DWORD_PTR baseAddress, DWORD_PTR iatAddress, BYTE * dataBuffer, DWORD bufferSize );
+	std::uintptr_t findIATStartAddress( std::uintptr_t uBaseAddress, std::uintptr_t uStartAddress, std::uint8_t* pDataBuffer );
+	std::uint32_t findIATSize( std::uintptr_t uBaseAddress, std::uintptr_t uIATAddress, std::uint8_t* pDataBuffer, std::uint32_t uBufferSize );
 
-	void findIATPointers(std::set<DWORD_PTR> & iatPointers);
-	void findExecutableMemoryPagesByStartAddress( DWORD_PTR startAddress, DWORD_PTR* baseAddress, SIZE_T* memorySize );
-	void filterIATPointersList( std::set<DWORD_PTR> & iatPointers );
-    void getMemoryBaseAndSizeForIat( DWORD_PTR address, DWORD_PTR* baseAddress, DWORD* baseSize );
+	void findIATPointers( std::set<std::uintptr_t>& iatPointers );
+	void findExecutableMemoryPagesByStartAddress( std::uintptr_t uStartAddress, std::uintptr_t* uBaseAddress, std::size_t* pMemorySize );
+	void filterIATPointersList( std::set<std::uintptr_t>& iatPointers );
+	void getMemoryBaseAndSizeForIat( std::uintptr_t uAddress, std::uintptr_t* uBaseAddress, std::uint32_t* pBaseSize );
 };

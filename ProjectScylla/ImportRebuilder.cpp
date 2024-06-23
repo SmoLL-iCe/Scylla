@@ -14,13 +14,13 @@ New Scylla section contains:
 
 */
 
-bool ImportRebuilder::rebuildImportTable( const WCHAR* newFilePath, std::map<DWORD_PTR, ImportModuleThunk>& moduleList )
+bool ImportRebuilder::rebuildImportTable( const wchar_t* pNewFilePath, std::map<std::uintptr_t, ImportModuleThunk>& vModuleList )
 {
-	bool retValue = false;
+	bool bResult = false;
 
-	std::map<DWORD_PTR, ImportModuleThunk> copyModule;
+	std::map<std::uintptr_t, ImportModuleThunk> copyModule;
 
-	copyModule.insert( moduleList.begin( ), moduleList.end( ) );
+	copyModule.insert( vModuleList.begin( ), vModuleList.end( ) );
 
 	if ( isValidPeFile( ) )
 	{
@@ -28,148 +28,148 @@ bool ImportRebuilder::rebuildImportTable( const WCHAR* newFilePath, std::map<DWO
 		{
 			setDefaultFileAlignment( );
 
-			retValue = buildNewImportTable( copyModule );
+			bResult = buildNewImportTable( copyModule );
 
-			if ( retValue )
+			if ( bResult )
 			{
 				alignAllSectionHeaders( );
 				fixPeHeader( );
 
-				if ( newIatInSection )
+				if ( bNewIatInSection )
 				{
 					patchFileForNewIatLocation( );
 				}
 
-				if ( BuildDirectImportsJumpTable )
+				if ( bBuildDirectImportsJumpTable )
 				{
 					patchFileForDirectImportJumpTable( );
 				}
 
-				retValue = savePeFileToDisk( newFilePath );
+				bResult = savePeFileToDisk( pNewFilePath );
 			}
 		}
 	}
 
-	return retValue;
+	return bResult;
 }
 
-bool ImportRebuilder::buildNewImportTable( std::map<DWORD_PTR, ImportModuleThunk>& moduleList )
+bool ImportRebuilder::buildNewImportTable( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList )
 {
-	createNewImportSection( moduleList );
+	createNewImportSection( vModuleList );
 
-	importSectionIndex = listPeSection.size( ) - 1;
+	szImportSectionIndex = vListPeSection.size( ) - 1;
 
-	if ( BuildDirectImportsJumpTable )
+	if ( bBuildDirectImportsJumpTable )
 	{
-		directImportsJumpTableRVA = listPeSection[ importSectionIndex ].sectionHeader.VirtualAddress;
-		JMPTableMemory = listPeSection[ importSectionIndex ].data;
+		uDirectImportsJumpTableRVA = vListPeSection[ szImportSectionIndex ].sectionHeader.VirtualAddress;
+		uJMPTableMemory = vListPeSection[ szImportSectionIndex ].pData;
 	}
 
-	if ( newIatInSection )
+	if ( bNewIatInSection )
 	{
-		newIatBaseAddressRVA = listPeSection[ importSectionIndex ].sectionHeader.VirtualAddress;
+		uNewIatBaseAddressRVA = vListPeSection[ szImportSectionIndex ].sectionHeader.VirtualAddress;
 
-		if ( BuildDirectImportsJumpTable )
+		if ( bBuildDirectImportsJumpTable )
 		{
-			newIatBaseAddressRVA += iatReferenceScan->getSizeInBytesOfJumpTableInSection( );
+			uNewIatBaseAddressRVA += pIatReferenceScan->getSizeInBytesOfJumpTableInSection( );
 		}
 
-		changeIatBaseAddress( moduleList );
+		changeIatBaseAddress( vModuleList );
 	}
 
-	DWORD dwSize = fillImportSection( moduleList );
+	std::uint32_t uSize = fillImportSection( vModuleList );
 
-	if ( !dwSize )
+	if ( !uSize )
 	{
 		return false;
 	}
 
-	setFlagToIATSection( ( *moduleList.begin( ) ).second.firstThunk );
+	setFlagToIATSection( ( *vModuleList.begin( ) ).second.uFirstThunk );
 
-	DWORD vaImportAddress = listPeSection[ importSectionIndex ].sectionHeader.VirtualAddress;
+	std::uint32_t vaImportAddress = vListPeSection[ szImportSectionIndex ].sectionHeader.VirtualAddress;
 
-	if ( useOFT )
+	if ( bUseOFT )
 	{
 		//OFT array is at the beginning of the import section
-		vaImportAddress += static_cast<DWORD>( sizeOfOFTArray );
+		vaImportAddress += static_cast<std::uint32_t>( szOfOFTArray );
 	}
-	if ( newIatInSection )
+	if ( bNewIatInSection )
 	{
-		vaImportAddress += static_cast<DWORD>( IatSize );
+		vaImportAddress += static_cast<std::uint32_t>( IatSize );
 	}
 
-	if ( BuildDirectImportsJumpTable )
+	if ( bBuildDirectImportsJumpTable )
 	{
-		vaImportAddress += static_cast<DWORD>( iatReferenceScan->getSizeInBytesOfJumpTableInSection( ) );
+		vaImportAddress += static_cast<std::uint32_t>( pIatReferenceScan->getSizeInBytesOfJumpTableInSection( ) );
 	}
 
 	if ( isPE32( ) )
 	{
 		pNTHeader32->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].VirtualAddress = vaImportAddress;
-		pNTHeader32->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].Size = static_cast<DWORD>( numberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
+		pNTHeader32->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].Size = static_cast<std::uint32_t>( szNumberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
 	}
 	else
 	{
 		pNTHeader64->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].VirtualAddress = vaImportAddress;
-		pNTHeader64->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].Size = static_cast<DWORD>( numberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
+		pNTHeader64->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ].Size = static_cast<std::uint32_t>( szNumberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
 	}
 
 
 	return true;
 }
 
-bool ImportRebuilder::createNewImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList )
+bool ImportRebuilder::createNewImportSection( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList )
 {
-	char sectionName[ IMAGE_SIZEOF_SHORT_NAME + 1 ] = { 0 };
+	char pSectionName[ IMAGE_SIZEOF_SHORT_NAME + 1 ] = { 0 };
 
-	const WCHAR* sectionNameW = Config::IAT_SECTION_NAME;
+	const wchar_t* pSectionNameW = Config::IAT_SECTION_NAME;
 
-	calculateImportSizes( moduleList );
+	calculateImportSizes( vModuleList );
 
-	if ( wcslen( sectionNameW ) > IMAGE_SIZEOF_SHORT_NAME )
+	if ( wcslen( pSectionNameW ) > IMAGE_SIZEOF_SHORT_NAME )
 	{
-		strcpy_s( sectionName, ".SCY" );
+		strcpy_s( pSectionName, ".SCY" );
 	}
 	else
 	{
-		StringConversion::ToASCII( sectionNameW, sectionName, _countof( sectionName ) );
+		StringConversion::ToASCII( pSectionNameW, pSectionName, _countof( pSectionName ) );
 	}
 
-	if ( newIatInSection )
+	if ( bNewIatInSection )
 	{
-		sizeOfImportSection += IatSize;
+		szOfImportSection += IatSize;
 	}
-	if ( BuildDirectImportsJumpTable )
+	if ( bBuildDirectImportsJumpTable )
 	{
-		sizeOfImportSection += iatReferenceScan->getSizeInBytesOfJumpTableInSection( );
+		szOfImportSection += pIatReferenceScan->getSizeInBytesOfJumpTableInSection( );
 	}
 
-	return addNewLastSection( sectionName, static_cast<DWORD>( sizeOfImportSection ), 0 );
+	return addNewLastSection( pSectionName, static_cast<std::uint32_t>( szOfImportSection ), 0 );
 }
 
-void ImportRebuilder::setFlagToIATSection( DWORD_PTR iatAddress )
+void ImportRebuilder::setFlagToIATSection( std::uintptr_t uIATAddress )
 {
-	for ( size_t i = 0; i < listPeSection.size( ); i++ )
+	for ( std::size_t i = 0; i < vListPeSection.size( ); i++ )
 	{
-		if ( ( listPeSection[ i ].sectionHeader.VirtualAddress <= iatAddress ) && ( ( static_cast<DWORD_PTR>( listPeSection[ i ].sectionHeader.VirtualAddress ) + listPeSection[ i ].sectionHeader.Misc.VirtualSize ) > iatAddress ) )
+		if ( ( vListPeSection[ i ].sectionHeader.VirtualAddress <= uIATAddress ) && ( ( static_cast<std::uintptr_t>( vListPeSection[ i ].sectionHeader.VirtualAddress ) + vListPeSection[ i ].sectionHeader.Misc.VirtualSize ) > uIATAddress ) )
 		{
 			//section must be read and writeable
-			listPeSection[ i ].sectionHeader.Characteristics |= IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+			vListPeSection[ i ].sectionHeader.Characteristics |= IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
 		}
 	}
 }
 
-DWORD ImportRebuilder::fillImportSection( std::map<DWORD_PTR, ImportModuleThunk>& moduleList )
+std::uint32_t ImportRebuilder::fillImportSection( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList )
 {
-	std::map<DWORD_PTR, ImportModuleThunk>::iterator mapIt;
-	std::map<DWORD_PTR, ImportThunk>::iterator mapIt2;
+	std::map<std::uintptr_t, ImportModuleThunk>::iterator mapIt;
+	std::map<std::uintptr_t, ImportThunk>::iterator mapIt2;
 
-	size_t stringLength = 0;
-	DWORD_PTR lastRVA = 0;
+	std::size_t szStringLength = 0;
+	std::uintptr_t uLastRVA = 0;
 
-	BYTE* sectionData = listPeSection[ importSectionIndex ].data;
-	DWORD offset = 0;
-	DWORD offsetOFTArray = 0;
+	std::uint8_t* pSectionData = vListPeSection[ szImportSectionIndex ].pData;
+	std::uint32_t uOffset = 0;
+	std::uint32_t uOffsetOFTArray = 0;
 
 	/*
 	New Scylla section contains:
@@ -180,208 +180,208 @@ DWORD ImportRebuilder::fillImportSection( std::map<DWORD_PTR, ImportModuleThunk>
 	4. Normal IAT entries
 
 	*/
-	if ( BuildDirectImportsJumpTable )
+	if ( bBuildDirectImportsJumpTable )
 	{
-		offset += iatReferenceScan->getSizeInBytesOfJumpTableInSection( );
-		offsetOFTArray += iatReferenceScan->getSizeInBytesOfJumpTableInSection( );
+		uOffset += pIatReferenceScan->getSizeInBytesOfJumpTableInSection( );
+		uOffsetOFTArray += pIatReferenceScan->getSizeInBytesOfJumpTableInSection( );
 	}
-	if ( newIatInSection )
+	if ( bNewIatInSection )
 	{
-		offset += IatSize; //new iat at the beginning
-		offsetOFTArray += IatSize;
-		memset( sectionData, 0xFF, offset );
+		uOffset += IatSize; //new iat at the beginning
+		uOffsetOFTArray += IatSize;
+		memset( pSectionData, 0xFF, uOffset );
 	}
-	if ( useOFT )
+	if ( bUseOFT )
 	{
-		offset += static_cast<DWORD>( sizeOfOFTArray ); //size includes null termination
+		uOffset += static_cast<std::uint32_t>( szOfOFTArray ); //size includes null termination
 	}
 
-	pImportDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>( reinterpret_cast<DWORD_PTR>( sectionData ) + offset );
+	pImportDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>( reinterpret_cast<std::uintptr_t>( pSectionData ) + uOffset );
 
 	//skip the IMAGE_IMPORT_DESCRIPTOR
-	offset += static_cast<DWORD>( numberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
+	uOffset += static_cast<std::uint32_t>( szNumberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
 
-	for ( mapIt = moduleList.begin( ); mapIt != moduleList.end( ); mapIt++ )
+	for ( mapIt = vModuleList.begin( ); mapIt != vModuleList.end( ); mapIt++ )
 	{
-		ImportModuleThunk* importModuleThunk = &( ( *mapIt ).second );
+		ImportModuleThunk* pImportModuleThunk = &( ( *mapIt ).second );
 
-		stringLength = addImportDescriptor( importModuleThunk, offset, offsetOFTArray );
+		szStringLength = addImportDescriptor( pImportModuleThunk, uOffset, uOffsetOFTArray );
 
 
 		LOGS_DEBUG( "fillImportSection :: importDesc.Name %X", pImportDescriptor->Name );
 
 
-		offset += static_cast<DWORD>( stringLength ); //stringLength has null termination char
+		uOffset += static_cast<std::uint32_t>( szStringLength ); //stringLength has null termination char
 
-		pImportByName = reinterpret_cast<PIMAGE_IMPORT_BY_NAME>( reinterpret_cast<DWORD_PTR>( sectionData ) + offset );
+		pImportByName = reinterpret_cast<PIMAGE_IMPORT_BY_NAME>( reinterpret_cast<std::uintptr_t>( pSectionData ) + uOffset );
 
-		//pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>(getMemoryPointerFromRVA(importModuleThunk->firstThunk));
+		//pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>(getMemoryPointerFromRVA(importModuleThunk->uFirstThunk));
 
-		lastRVA = importModuleThunk->firstThunk - sizeof( DWORD_PTR );
+		uLastRVA = pImportModuleThunk->uFirstThunk - sizeof( std::uintptr_t );
 
-		for ( mapIt2 = ( *mapIt ).second.thunkList.begin( ); mapIt2 != ( *mapIt ).second.thunkList.end( ); mapIt2++ )
+		for ( mapIt2 = ( *mapIt ).second.mpThunkList.begin( ); mapIt2 != ( *mapIt ).second.mpThunkList.end( ); mapIt2++ )
 		{
-			ImportThunk* importThunk = &( ( *mapIt2 ).second );
+			ImportThunk* pImportThunk = &( ( *mapIt2 ).second );
 
 			PIMAGE_THUNK_DATA pThunk = nullptr;
 
-			if ( useOFT )
+			if ( bUseOFT )
 			{
-				pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( reinterpret_cast<DWORD_PTR>( sectionData ) + offsetOFTArray );
-				offsetOFTArray += sizeof( DWORD_PTR ); //increase OFT array index
+				pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( reinterpret_cast<std::uintptr_t>( pSectionData ) + uOffsetOFTArray );
+				uOffsetOFTArray += sizeof( std::uintptr_t ); //increase OFT array index
 			}
 			else
 			{
-				pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( getMemoryPointerFromRVA( importThunk->rva ) );
+				pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( getMemoryPointerFromRVA( pImportThunk->uRVA ) );
 			}
 
 			//check wrong iat pointer
 			if ( !pThunk )
 			{
-				LOGS_DEBUG( "fillImportSection :: Failed to get pThunk RVA: %X", importThunk->rva );
+				LOGS_DEBUG( "fillImportSection :: Failed to get pThunk RVA: %X", pImportThunk->RVA );
 
 				return 0;
 			}
 
-			if ( ( lastRVA + sizeof( DWORD_PTR ) ) != importThunk->rva )
+			if ( ( uLastRVA + sizeof( std::uintptr_t ) ) != pImportThunk->uRVA )
 			{
 				//add additional import desc
-				addSpecialImportDescriptor( importThunk->rva, offsetOFTArray );
+				addSpecialImportDescriptor( pImportThunk->uRVA, uOffsetOFTArray );
 
-				if ( useOFT )
+				if ( bUseOFT )
 				{
-					pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( reinterpret_cast<DWORD_PTR>( sectionData ) + offsetOFTArray );
-					offsetOFTArray += sizeof( DWORD_PTR ); //increase OFT array index, next module
+					pThunk = reinterpret_cast<PIMAGE_THUNK_DATA>( reinterpret_cast<std::uintptr_t>( pSectionData ) + uOffsetOFTArray );
+					uOffsetOFTArray += sizeof( std::uintptr_t ); //increase OFT array index, next pModule
 				}
 			}
-			lastRVA = importThunk->rva;
+			uLastRVA = pImportThunk->uRVA;
 
 
-			LOGS_DEBUG( "fillImportSection :: importThunk %X pThunk %X pImportByName %X offset %X", importThunk, pThunk, pImportByName, offset );
+			LOGS_DEBUG( "fillImportSection :: importThunk %X pThunk %X pImportByName %X uOffset %X", pImportThunk, pThunk, pImportByName, uOffset );
 
-			stringLength = addImportToImportTable( importThunk, pThunk, pImportByName, offset );
+			szStringLength = addImportToImportTable( pImportThunk, pThunk, pImportByName, uOffset );
 
-			offset += static_cast<DWORD>( stringLength ); //is 0 bei import by ordinal
-			pImportByName = reinterpret_cast<PIMAGE_IMPORT_BY_NAME>( reinterpret_cast<DWORD_PTR>( pImportByName ) + stringLength );
+			uOffset += static_cast<std::uint32_t>( szStringLength ); //is 0 bei import by ordinal
+			pImportByName = reinterpret_cast<PIMAGE_IMPORT_BY_NAME>( reinterpret_cast<std::uintptr_t>( pImportByName ) + szStringLength );
 		}
 
-		offsetOFTArray += sizeof( DWORD_PTR ); //increase OFT array index, next module
+		uOffsetOFTArray += sizeof( std::uintptr_t ); //increase OFT array index, next pModule
 		pImportDescriptor++;
 	}
 
-	return offset;
+	return uOffset;
 }
 
 
-size_t ImportRebuilder::addImportDescriptor( ImportModuleThunk* pImportModule, DWORD sectionOffset, DWORD sectionOffsetOFTArray )
+std::size_t ImportRebuilder::addImportDescriptor( ImportModuleThunk* pImportModule, std::uint32_t uSectionOffset, std::uint32_t uSectionOffsetOFTArray )
 {
 	char dllName[ MAX_PATH ];
 
-	StringConversion::ToASCII( pImportModule->moduleName, dllName, _countof( dllName ) );
-	size_t stringLength = strlen( dllName ) + 1;
+	StringConversion::ToASCII( pImportModule->pModuleName, dllName, _countof( dllName ) );
+	std::size_t stringLength = strlen( dllName ) + 1;
 
 	/*
 		Warning: stringLength MUST include null termination char
 	*/
 
-	memcpy( ( listPeSection[ importSectionIndex ].data + sectionOffset ), dllName, stringLength ); //copy module name to section
+	memcpy( ( vListPeSection[ szImportSectionIndex ].pData + uSectionOffset ), dllName, stringLength ); //copy pModule name to section
 
-	pImportDescriptor->FirstThunk = static_cast<DWORD>( pImportModule->firstThunk );
-	pImportDescriptor->Name = static_cast<DWORD>( convertOffsetToRVAVector( 
-		listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData + static_cast<DWORD_PTR>( sectionOffset ) ) );
+	pImportDescriptor->FirstThunk = static_cast<std::uint32_t>( pImportModule->uFirstThunk );
+	pImportDescriptor->Name = static_cast<std::uint32_t>( convertOffsetToRVAVector(
+		vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData + static_cast<std::uintptr_t>( uSectionOffset ) ) );
 
-	if ( useOFT )
+	if ( bUseOFT )
 	{
-		pImportDescriptor->OriginalFirstThunk = static_cast<DWORD>( convertOffsetToRVAVector( 
-			listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData + static_cast<DWORD_PTR>( sectionOffsetOFTArray ) ) );
+		pImportDescriptor->OriginalFirstThunk = static_cast<std::uint32_t>( convertOffsetToRVAVector(
+			vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData + static_cast<std::uintptr_t>( uSectionOffsetOFTArray ) ) );
 	}
 
 	return stringLength;
 }
 
-void ImportRebuilder::addSpecialImportDescriptor( DWORD_PTR rvaFirstThunk, DWORD sectionOffsetOFTArray )
+void ImportRebuilder::addSpecialImportDescriptor( std::uintptr_t uRvaFirstThunk, std::uint32_t uSectionOffsetOFTArray )
 {
 	PIMAGE_IMPORT_DESCRIPTOR oldID = pImportDescriptor;
 	pImportDescriptor++;
 
-	pImportDescriptor->FirstThunk = static_cast<DWORD>( rvaFirstThunk );
+	pImportDescriptor->FirstThunk = static_cast<std::uint32_t>( uRvaFirstThunk );
 	pImportDescriptor->Name = oldID->Name;
 
-	if ( useOFT )
+	if ( bUseOFT )
 	{
-		pImportDescriptor->OriginalFirstThunk = static_cast<DWORD>( 
-			convertOffsetToRVAVector( 
-				listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData + static_cast<DWORD_PTR>( sectionOffsetOFTArray ) ) );
+		pImportDescriptor->OriginalFirstThunk = static_cast<std::uint32_t>(
+			convertOffsetToRVAVector(
+				vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData + static_cast<std::uintptr_t>( uSectionOffsetOFTArray ) ) );
 	}
 }
 
-void ImportRebuilder::calculateImportSizes( std::map<DWORD_PTR, ImportModuleThunk>& moduleList )
+void ImportRebuilder::calculateImportSizes( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList )
 {
-	std::map<DWORD_PTR, ImportModuleThunk>::iterator mapIt;
-	std::map<DWORD_PTR, ImportThunk>::iterator mapIt2;
-	DWORD_PTR lastRVA = 0;
+	std::map<std::uintptr_t, ImportModuleThunk>::iterator mapIt;
+	std::map<std::uintptr_t, ImportThunk>::iterator mapIt2;
+	std::uintptr_t lastRVA = 0;
 
 
-	sizeOfImportSection = 0;
-	sizeOfApiAndModuleNames = 0;
-	sizeOfOFTArray = 0;
+	szOfImportSection = 0;
+	szOfApiAndModuleNames = 0;
+	szOfOFTArray = 0;
 
-	numberOfImportDescriptors = moduleList.size( ) + 1; //last is zero'd
+	szNumberOfImportDescriptors = vModuleList.size( ) + 1; //last is zero'd
 
-	for ( mapIt = moduleList.begin( ) ; mapIt != moduleList.end( ); mapIt++ )
+	for ( mapIt = vModuleList.begin( ) ; mapIt != vModuleList.end( ); mapIt++ )
 	{
-		lastRVA = ( *mapIt ).second.firstThunk - sizeof( DWORD_PTR );
+		lastRVA = ( *mapIt ).second.uFirstThunk - sizeof( std::uintptr_t );
 
-		sizeOfApiAndModuleNames += static_cast<DWORD_PTR>( wcslen( ( *mapIt ).second.moduleName ) + 1 );
+		szOfApiAndModuleNames += static_cast<std::uintptr_t>( wcslen( ( *mapIt ).second.pModuleName ) + 1 );
 
-		for ( mapIt2 = ( *mapIt ).second.thunkList.begin( ) ; mapIt2 != ( *mapIt ).second.thunkList.end( ); mapIt2++ )
+		for ( mapIt2 = ( *mapIt ).second.mpThunkList.begin( ) ; mapIt2 != ( *mapIt ).second.mpThunkList.end( ); mapIt2++ )
 		{
-			if ( ( lastRVA + sizeof( DWORD_PTR ) ) != ( *mapIt2 ).second.rva )
+			if ( ( lastRVA + sizeof( std::uintptr_t ) ) != ( *mapIt2 ).second.uRVA )
 			{
-				numberOfImportDescriptors++; //add additional import desc
-				sizeOfOFTArray += sizeof( DWORD_PTR ) + sizeof( DWORD_PTR );
+				szNumberOfImportDescriptors++; //add additional import desc
+				szOfOFTArray += sizeof( std::uintptr_t ) + sizeof( std::uintptr_t );
 			}
 
 			if ( ( *mapIt2 ).second.name[ 0 ] != '\0' )
 			{
-				sizeOfApiAndModuleNames += sizeof( WORD ); //Hint from IMAGE_IMPORT_BY_NAME
-				sizeOfApiAndModuleNames += static_cast<DWORD_PTR>( strlen( ( *mapIt2 ).second.name ) + 1 );
+				szOfApiAndModuleNames += sizeof( std::uint16_t ); //Hint from IMAGE_IMPORT_BY_NAME
+				szOfApiAndModuleNames += static_cast<std::uintptr_t>( strlen( ( *mapIt2 ).second.name ) + 1 );
 			}
 
 			//OriginalFirstThunk Array in Import Section: value
-			sizeOfOFTArray += sizeof( DWORD_PTR );
+			szOfOFTArray += sizeof( std::uintptr_t );
 
-			lastRVA = ( *mapIt2 ).second.rva;
+			lastRVA = ( *mapIt2 ).second.uRVA;
 		}
 
 		//OriginalFirstThunk Array in Import Section: NULL termination
-		sizeOfOFTArray += sizeof( DWORD_PTR );
+		szOfOFTArray += sizeof( std::uintptr_t );
 	}
 
-	sizeOfImportSection = sizeOfOFTArray + sizeOfApiAndModuleNames + ( numberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
+	szOfImportSection = szOfOFTArray + szOfApiAndModuleNames + ( szNumberOfImportDescriptors * sizeof( IMAGE_IMPORT_DESCRIPTOR ) );
 }
 
-size_t ImportRebuilder::addImportToImportTable( ImportThunk* pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, DWORD sectionOffset )
+std::size_t ImportRebuilder::addImportToImportTable( ImportThunk* pImport, PIMAGE_THUNK_DATA pThunk, PIMAGE_IMPORT_BY_NAME pImportByName, std::uint32_t uSectionOffset )
 {
-	size_t stringLength = 0;
+	std::size_t stringLength = 0;
 
 	if ( pImport->name[ 0 ] == '\0' )
 	{
-		pThunk->u1.AddressOfData = ( IMAGE_ORDINAL( pImport->ordinal ) | IMAGE_ORDINAL_FLAG );
+		pThunk->u1.AddressOfData = ( IMAGE_ORDINAL( pImport->uOrdinal ) | IMAGE_ORDINAL_FLAG );
 	}
 	else
 	{
-		pImportByName->Hint = pImport->hint;
+		pImportByName->Hint = pImport->uHint;
 
 		stringLength = strlen( pImport->name ) + 1;
 		memcpy( pImportByName->Name, pImport->name, stringLength );
 
-		pThunk->u1.AddressOfData = convertOffsetToRVAVector( listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData + static_cast<DWORD_PTR>( sectionOffset ) );
+		pThunk->u1.AddressOfData = convertOffsetToRVAVector( vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData + static_cast<std::uintptr_t>( uSectionOffset ) );
 
 		if ( !pThunk->u1.AddressOfData )
 		{
 
-			LOGS_DEBUG( "addImportToImportTable :: failed to get AddressOfData %X %X", listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData, sectionOffset );
+			LOGS_DEBUG( "addImportToImportTable :: failed to get AddressOfData %X %X", vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData, uSectionOffset );
 
 		}
 
@@ -390,93 +390,93 @@ size_t ImportRebuilder::addImportToImportTable( ImportThunk* pImport, PIMAGE_THU
 		pThunk->u1.AddressOfData = 0;
 
 
-		LOGS_DEBUG( "addImportToImportTable :: pThunk->u1.AddressOfData %X %X %X", pThunk->u1.AddressOfData, pThunk, listPeSection[ importSectionIndex ].sectionHeader.PointerToRawData + sectionOffset );
+		LOGS_DEBUG( "addImportToImportTable :: pThunk->u1.AddressOfData %X %X %X", pThunk->u1.AddressOfData, pThunk, vListPeSection[ szImportSectionIndex ].sectionHeader.PointerToRawData + uSectionOffset );
 
-		stringLength += sizeof( WORD );
+		stringLength += sizeof( std::uint16_t );
 	}
 
 	return stringLength;
 }
 
-BYTE* ImportRebuilder::getMemoryPointerFromRVA( DWORD_PTR dwRVA )
+std::uint8_t* ImportRebuilder::getMemoryPointerFromRVA( std::uintptr_t uRVA )
 {
-	int peSectionIndex = convertRVAToOffsetVectorIndex( dwRVA );
+	int peSectionIndex = convertRVAToOffsetVectorIndex( uRVA );
 
 	if ( peSectionIndex == -1 )
 	{
 		return 0;
 	}
 
-	DWORD rvaPointer = ( static_cast<DWORD>( dwRVA ) - listPeSection[ peSectionIndex ].sectionHeader.VirtualAddress );
-	DWORD minSectionSize = rvaPointer + ( sizeof( DWORD_PTR ) * 2 ); //add space for 1 IAT address
+	std::uint32_t rvaPointer = ( static_cast<std::uint32_t>( uRVA ) - vListPeSection[ peSectionIndex ].sectionHeader.VirtualAddress );
+	std::uint32_t minSectionSize = rvaPointer + ( sizeof( std::uintptr_t ) * 2 ); //add space for 1 IAT address
 
-	if ( listPeSection[ peSectionIndex ].data == 0 || listPeSection[ peSectionIndex ].dataSize == 0 )
+	if ( vListPeSection[ peSectionIndex ].pData == 0 || vListPeSection[ peSectionIndex ].uDataSize == 0 )
 	{
-		listPeSection[ peSectionIndex ].dataSize = minSectionSize;
-		listPeSection[ peSectionIndex ].normalSize = minSectionSize;
-		listPeSection[ peSectionIndex ].data = new BYTE[ listPeSection[ peSectionIndex ].dataSize ];
+		vListPeSection[ peSectionIndex ].uDataSize = minSectionSize;
+		vListPeSection[ peSectionIndex ].uNormalSize = minSectionSize;
+		vListPeSection[ peSectionIndex ].pData = new std::uint8_t[ vListPeSection[ peSectionIndex ].uDataSize ];
 
-		listPeSection[ peSectionIndex ].sectionHeader.SizeOfRawData = listPeSection[ peSectionIndex ].dataSize;
+		vListPeSection[ peSectionIndex ].sectionHeader.SizeOfRawData = vListPeSection[ peSectionIndex ].uDataSize;
 	}
-	else if ( listPeSection[ peSectionIndex ].dataSize < minSectionSize )
+	else if ( vListPeSection[ peSectionIndex ].uDataSize < minSectionSize )
 	{
-		BYTE* temp = new BYTE[ minSectionSize ];
-		memcpy( temp, listPeSection[ peSectionIndex ].data, listPeSection[ peSectionIndex ].dataSize );
-		delete[ ] listPeSection[ peSectionIndex ].data;
+		std::uint8_t* temp = new std::uint8_t[ minSectionSize ];
+		memcpy( temp, vListPeSection[ peSectionIndex ].pData, vListPeSection[ peSectionIndex ].uDataSize );
+		delete[ ] vListPeSection[ peSectionIndex ].pData;
 
-		listPeSection[ peSectionIndex ].data = temp;
-		listPeSection[ peSectionIndex ].dataSize = minSectionSize;
-		listPeSection[ peSectionIndex ].normalSize = minSectionSize;
+		vListPeSection[ peSectionIndex ].pData = temp;
+		vListPeSection[ peSectionIndex ].uDataSize = minSectionSize;
+		vListPeSection[ peSectionIndex ].uNormalSize = minSectionSize;
 
-		listPeSection[ peSectionIndex ].sectionHeader.SizeOfRawData = listPeSection[ peSectionIndex ].dataSize;
+		vListPeSection[ peSectionIndex ].sectionHeader.SizeOfRawData = vListPeSection[ peSectionIndex ].uDataSize;
 	}
 
-	return reinterpret_cast<BYTE*>( listPeSection[ peSectionIndex ].data + rvaPointer );
+	return reinterpret_cast<std::uint8_t*>( vListPeSection[ peSectionIndex ].pData + rvaPointer );
 }
 
 void ImportRebuilder::enableOFTSupport( )
 {
-	useOFT = true;
+	bUseOFT = true;
 }
 
-void ImportRebuilder::enableNewIatInSection( DWORD_PTR iatAddress, DWORD iatSize )
+void ImportRebuilder::enableNewIatInSection( std::uintptr_t uIATAddress, std::uint32_t uIatSize )
 {
-	newIatInSection = true;
-	IatAddress = iatAddress;
-	IatSize = iatSize;
+	bNewIatInSection = true;
+	IatAddress = uIATAddress;
+	IatSize = uIatSize;
 
-	iatReferenceScan->ScanForDirectImports = false;
-	iatReferenceScan->ScanForNormalImports = true;
+	pIatReferenceScan->ScanForDirectImports = false;
+	pIatReferenceScan->ScanForNormalImports = true;
 
-	iatReferenceScan->startScan( ProcessAccessHelp::targetImageBase, static_cast<DWORD>( ProcessAccessHelp::targetSizeOfImage ), IatAddress, IatSize );
+	pIatReferenceScan->startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), IatAddress, IatSize );
 }
 
 void ImportRebuilder::patchFileForNewIatLocation( )
 {
-	iatReferenceScan->patchNewIat( getStandardImagebase( ), newIatBaseAddressRVA, this );
+	pIatReferenceScan->patchNewIat( getStandardImagebase( ), uNewIatBaseAddressRVA, this );
 }
 
-void ImportRebuilder::changeIatBaseAddress( std::map<DWORD_PTR, ImportModuleThunk>& moduleList ) const
+void ImportRebuilder::changeIatBaseAddress( std::map<std::uintptr_t, ImportModuleThunk>& vModuleList ) const
 {
-	std::map<DWORD_PTR, ImportModuleThunk>::iterator mapIt;
-	std::map<DWORD_PTR, ImportThunk>::iterator mapIt2;
+	std::map<std::uintptr_t, ImportModuleThunk>::iterator mapIt;
+	std::map<std::uintptr_t, ImportThunk>::iterator mapIt2;
 
-	DWORD_PTR oldIatRva = IatAddress - ProcessAccessHelp::targetImageBase;
+	std::uintptr_t oldIatRva = IatAddress - ProcessAccessHelp::uTargetImageBase;
 
-	for ( mapIt = moduleList.begin( ) ; mapIt != moduleList.end( ); mapIt++ )
+	for ( mapIt = vModuleList.begin( ) ; mapIt != vModuleList.end( ); mapIt++ )
 	{
-		( *mapIt ).second.firstThunk = ( *mapIt ).second.firstThunk - oldIatRva + newIatBaseAddressRVA;
+		( *mapIt ).second.uFirstThunk = ( *mapIt ).second.uFirstThunk - oldIatRva + uNewIatBaseAddressRVA;
 
-		for ( mapIt2 = ( *mapIt ).second.thunkList.begin( ) ; mapIt2 != ( *mapIt ).second.thunkList.end( ); mapIt2++ )
+		for ( mapIt2 = ( *mapIt ).second.mpThunkList.begin( ) ; mapIt2 != ( *mapIt ).second.mpThunkList.end( ); mapIt2++ )
 		{
-			( *mapIt2 ).second.rva = ( *mapIt2 ).second.rva - oldIatRva + newIatBaseAddressRVA;
+			( *mapIt2 ).second.uRVA = ( *mapIt2 ).second.uRVA - oldIatRva + uNewIatBaseAddressRVA;
 		}
 	}
 }
 
 void ImportRebuilder::patchFileForDirectImportJumpTable( )
 {
-	iatReferenceScan->patchDirectJumpTable( getStandardImagebase( ), directImportsJumpTableRVA, this, JMPTableMemory, (newIatInSection) ? newIatBaseAddressRVA : 0 );
+	pIatReferenceScan->patchDirectJumpTable( getStandardImagebase( ), uDirectImportsJumpTableRVA, this, uJMPTableMemory, ( bNewIatInSection ) ? uNewIatBaseAddressRVA : 0 );
 
 }
 

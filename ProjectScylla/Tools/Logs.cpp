@@ -1,7 +1,7 @@
 #include "Logs.h"
 #include <stdio.h>
 
-void nlog::SetConsoleColor( WORD color )
+void nlog::SetConsoleColor( std::uint16_t color )
 {
 	HANDLE hConsoleOutput = GetStdHandle( STD_OUTPUT_HANDLE );
 	SetConsoleTextAttribute( hConsoleOutput, color );

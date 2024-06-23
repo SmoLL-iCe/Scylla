@@ -6,26 +6,26 @@
 
 void ImportThunk::invalidate( )
 {
-	ordinal = 0;
-	hint = 0;
-	valid = false;
-	suspect = false;
-	moduleName[ 0 ] = 0;
+	uOrdinal = 0;
+	uHint = 0;
+	bValid = false;
+	bSuspect = false;
+	pModuleName[ 0 ] = 0;
 	name[ 0 ] = 0;
 }
 
 bool ImportModuleThunk::isValid( ) const
 {
-	return std::all_of( thunkList.begin( ), thunkList.end( ), [ ]( const auto& pair ) {
-		return pair.second.valid;
+	return std::all_of( mpThunkList.begin( ), mpThunkList.end( ), [ ]( const auto& pair ) {
+		return pair.second.bValid;
 		} );
 }
 
-DWORD_PTR ImportModuleThunk::getFirstThunk( ) const
+std::uintptr_t ImportModuleThunk::getFirstThunk( ) const
 {
-	if ( !thunkList.empty( ) )
+	if ( !mpThunkList.empty( ) )
 	{
-		return thunkList.begin( )->first;
+		return mpThunkList.begin( )->first;
 	}
 	return 0;
 }
@@ -39,11 +39,11 @@ ImportsHandling::~ImportsHandling( ) {}
 
 ImportModuleThunk* ImportsHandling::getModuleThunk( ImportThunk* pImport )
 {
-	for ( auto& [key, moduleThunk] : moduleList )
+	for ( auto& [uKey, moduleThunk] : vModuleList )
 	{
-		for ( auto& [key, importThunk] : moduleThunk.thunkList )
+		for ( auto& [uKey, importThunk] : moduleThunk.mpThunkList )
 		{
-			if ( importThunk.key == pImport->key )
+			if ( importThunk.uKey == pImport->uKey )
 			{
 				return &moduleThunk;
 			}
@@ -57,31 +57,31 @@ void ImportsHandling::updateCounts( )
 {
 	m_thunkCount = m_invalidThunkCount = m_suspectThunkCount = 0;
 
-	for ( const auto& [key, moduleThunk] : moduleList )
+	for ( const auto& [uKey, moduleThunk] : vModuleList )
 	{
-		for ( const auto& [thunkKey, importThunk] : moduleThunk.thunkList )
+		for ( const auto& [thunkKey, importThunk] : moduleThunk.mpThunkList )
 		{
 			m_thunkCount++;
-			if ( !importThunk.valid )
+			if ( !importThunk.bValid )
 				m_invalidThunkCount++;
-			else if ( importThunk.suspect )
+			else if ( importThunk.bSuspect )
 				m_suspectThunkCount++;
 		}
 	}
 }
 
 /*
-bool ImportsHandling::addImport(const WCHAR * moduleName, const CHAR * name, DWORD_PTR va, DWORD_PTR rva, WORD ordinal, bool valid, bool suspect)
+bool ImportsHandling::addImport(const wchar_t * pModuleName, const char * name, std::uintptr_t VA, std::uintptr_t RVA, std::uint16_t uOrdinal, bool bValid, bool bSuspect)
 {
 	ImportModuleThunk* pModule = nullptr;
 
-	if (!moduleList.empty())
+	if (!vModuleList.empty())
 	{
-		auto it = std::find_if(moduleList.begin(), moduleList.end(), [rva](const std::pair<DWORD_PTR, ImportModuleThunk>& modulePair) {
-			return rva >= modulePair.second.firstThunk && (modulePair.first == moduleList.rbegin()->first || rva < std::next(&modulePair)->second.firstThunk);
+		auto it = std::find_if(vModuleList.begin(), vModuleList.end(), [RVA](const std::pair<std::uintptr_t, ImportModuleThunk>& modulePair) {
+			return RVA >= modulePair.second.uFirstThunk && (modulePair.first == vModuleList.rbegin()->first || RVA < std::next(&modulePair)->second.uFirstThunk);
 		});
 
-		if (it != moduleList.end())
+		if (it != vModuleList.end())
 		{
 			pModule = &(it->second);
 		}
@@ -89,21 +89,21 @@ bool ImportsHandling::addImport(const WCHAR * moduleName, const CHAR * name, DWO
 
 	if (!pModule)
 	{
-		Scylla::debugLog.log(L"ImportsHandling::addFunction pModule not found rva " PRINTF_DWORD_PTR_FULL, rva);
+		Scylla::debugLog.log(L"ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL, RVA);
 		return false;
 	}
 
 	ImportThunk pImport;
-	pImport.suspect = suspect;
-	pImport.valid = valid;
-	pImport.va = va;
-	pImport.rva = rva;
-	pImport.ordinal = ordinal;
+	pImport.bSuspect = bSuspect;
+	pImport.bValid = bValid;
+	pImport.VA = VA;
+	pImport.RVA = RVA;
+	pImport.uOrdinal = uOrdinal;
 
-	wcscpy_s(pImport.moduleName, MAX_PATH, moduleName);
+	wcscpy_s(pImport.pModuleName, MAX_PATH, pModuleName);
 	strcpy_s(pImport.name, MAX_PATH, name);
 
-	pModule->thunkList.insert(std::make_pair(pImport.rva, pImport));
+	pModule->mpThunkList.insert(std::make_pair(pImport.RVA, pImport));
 
 	return true;
 }
@@ -111,14 +111,14 @@ bool ImportsHandling::addImport(const WCHAR * moduleName, const CHAR * name, DWO
 */
 
 /*
-bool ImportsHandling::addModule(const WCHAR * moduleName, DWORD_PTR firstThunk)
+bool ImportsHandling::addModule(const wchar_t * pModuleName, std::uintptr_t uFirstThunk)
 {
 	ImportModuleThunk pModule;
 
-	pModule.firstThunk = firstThunk;
-	wcscpy_s(pModule.moduleName, MAX_PATH, moduleName);
+	pModule.uFirstThunk = uFirstThunk;
+	wcscpy_s(pModule.pModuleName, MAX_PATH, pModuleName);
 
-	moduleList.insert(std::pair<DWORD_PTR,ImportModuleThunk>(firstThunk,pModule));
+	vModuleList.insert(std::pair<std::uintptr_t,ImportModuleThunk>(uFirstThunk,pModule));
 
 	return true;
 }
@@ -126,14 +126,14 @@ bool ImportsHandling::addModule(const WCHAR * moduleName, DWORD_PTR firstThunk)
 
 void ImportsHandling::displayAllImports( )
 {
-	for ( auto& [key, moduleThunk] : moduleList )
+	for ( auto& [uKey, moduleThunk] : vModuleList )
 	{
-		moduleThunk.key = moduleThunk.firstThunk; // This belongs elsewhere...
+		moduleThunk.uKey = moduleThunk.uFirstThunk; // This belongs elsewhere...
 		//moduleThunk.hTreeItem = addDllToTreeView(TreeImports, &moduleThunk);
 
-		for ( auto& [thunkKey, importThunk] : moduleThunk.thunkList )
+		for ( auto& [thunkKey, importThunk] : moduleThunk.mpThunkList )
 		{
-			importThunk.key = importThunk.rva; // This belongs elsewhere...
+			importThunk.uKey = importThunk.uRVA; // This belongs elsewhere...
 			//importThunk.hTreeItem = addApiToTreeView(TreeImports, moduleThunk.hTreeItem, &importThunk);
 		}
 	}
@@ -143,7 +143,7 @@ void ImportsHandling::displayAllImports( )
 
 void ImportsHandling::clearAllImports( )
 {
-	moduleList.clear( );
+	vModuleList.clear( );
 	updateCounts( );
 }
 
@@ -162,7 +162,7 @@ bool ImportsHandling::invalidateModule( ImportModuleThunk* pModule )
 {
 	if ( pModule )
 	{
-		for ( auto& [key, importThunk] : pModule->thunkList )
+		for ( auto& [uKey, importThunk] : pModule->mpThunkList )
 		{
 			importThunk.invalidate( );
 		}
@@ -174,23 +174,23 @@ bool ImportsHandling::invalidateModule( ImportModuleThunk* pModule )
 	return false;
 }
 
-bool ImportsHandling::setImport( ImportThunk* pImport, const WCHAR* moduleName, const CHAR* apiName, WORD ordinal, WORD hint, bool valid, bool suspect )
+bool ImportsHandling::setImport( ImportThunk* pImport, const wchar_t* pModuleName, const char* pApiName, std::uint16_t uOrdinal, std::uint16_t uHint, bool bValid, bool bSuspect )
 {
 	if ( !pImport ) return false;
 
-	ImportModuleThunk* pModule = getModuleThunk( pImport );
-	if ( !pModule ) return false;
+	ImportModuleThunk* pModuleThunk = getModuleThunk( pImport );
+	if ( !pModuleThunk ) return false;
 
-	wcsncpy_s( pImport->moduleName, moduleName, MAX_PATH - 1 );
-	strncpy_s( pImport->name, apiName, MAX_PATH - 1 );
-	pImport->moduleName[ MAX_PATH - 1 ] = L'\0'; // Ensure null-termination
+	wcsncpy_s( pImport->pModuleName, pModuleName, MAX_PATH - 1 );
+	strncpy_s( pImport->name, pApiName, MAX_PATH - 1 );
+	pImport->pModuleName[ MAX_PATH - 1 ] = L'\0'; // Ensure null-termination
 	pImport->name[ MAX_PATH - 1 ] = '\0'; // Ensure null-termination
-	pImport->ordinal = ordinal;
-	pImport->hint = hint;
-	pImport->valid = valid;
-	pImport->suspect = suspect;
+	pImport->uOrdinal = uOrdinal;
+	pImport->uHint = uHint;
+	pImport->bValid = bValid;
+	pImport->bSuspect = bSuspect;
 
-	if ( pModule->isValid( ) )
+	if ( pModuleThunk->isValid( ) )
 	{
 		scanAndFixModuleList( );
 		displayAllImports( );
@@ -202,14 +202,14 @@ bool ImportsHandling::setImport( ImportThunk* pImport, const WCHAR* moduleName, 
 	return true;
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropriateIcon( const ImportThunk* importThunk )
+ImportsHandling::Icon ImportsHandling::getAppropriateIcon( const ImportThunk* pImportThunk )
 {
-	return importThunk->valid ? ( importThunk->suspect ? iconWarning : iconCheck ) : iconError;
+	return pImportThunk->bValid ? ( pImportThunk->bSuspect ? iconWarning : iconCheck ) : iconError;
 }
 
-ImportsHandling::Icon ImportsHandling::getAppropriateIcon( bool valid )
+ImportsHandling::Icon ImportsHandling::getAppropriateIcon( bool bValid )
 {
-	return valid ? iconCheck : iconError;
+	return bValid ? iconCheck : iconError;
 }
 
 bool ImportsHandling::cutImport( ImportThunk* pImport )
@@ -219,22 +219,22 @@ bool ImportsHandling::cutImport( ImportThunk* pImport )
 	ImportModuleThunk* pModule = getModuleThunk( pImport );
 	if ( !pModule ) return false;
 
-	pModule->thunkList.erase( pImport->key );
+	pModule->mpThunkList.erase( pImport->uKey );
 
-	if ( pModule->thunkList.empty( ) )
+	if ( pModule->mpThunkList.empty( ) )
 	{
-		moduleList.erase( pModule->key );
+		vModuleList.erase( pModule->uKey );
 	}
 	else
 	{
-		if ( pModule->isValid( ) && pModule->moduleName[ 0 ] == L'?' )
+		if ( pModule->isValid( ) && pModule->pModuleName[ 0 ] == L'?' )
 		{
 			// Update pModule name
-			wcsncpy_s( pModule->moduleName, pModule->thunkList.begin( )->second.moduleName, MAX_PATH - 1 );
-			pModule->moduleName[ MAX_PATH - 1 ] = L'\0'; // Ensure null-termination
+			wcsncpy_s( pModule->pModuleName, pModule->mpThunkList.begin( )->second.pModuleName, MAX_PATH - 1 );
+			pModule->pModuleName[ MAX_PATH - 1 ] = L'\0'; // Ensure null-termination
 		}
 
-		pModule->firstThunk = pModule->thunkList.begin( )->second.rva;
+		pModule->uFirstThunk = pModule->mpThunkList.begin( )->second.uRVA;
 	}
 
 	updateCounts( );
@@ -246,7 +246,7 @@ bool ImportsHandling::cutModule( ImportModuleThunk* pModule )
 {
 	if ( !pModule ) return false;
 
-	moduleList.erase( pModule->key );
+	vModuleList.erase( pModule->uKey );
 
 	updateCounts( );
 
@@ -255,146 +255,146 @@ bool ImportsHandling::cutModule( ImportModuleThunk* pModule )
 
 void ImportsHandling::scanAndFixModuleList( )
 {
-	WCHAR prevModuleName[ MAX_PATH ] = { 0 };
+	wchar_t prevModuleName[ MAX_PATH ] = { 0 };
 
-	for ( auto& [key, moduleThunk] : moduleList )
+	for ( auto& [uKey, moduleThunk] : vModuleList )
 	{
-		for ( auto& [thunkKey, importThunk] : moduleThunk.thunkList )
+		for ( auto& [thunkKey, importThunk] : moduleThunk.mpThunkList )
 		{
-			if ( importThunk.moduleName[ 0 ] == 0 || importThunk.moduleName[ 0 ] == L'?' )
+			if ( importThunk.pModuleName[ 0 ] == 0 || importThunk.pModuleName[ 0 ] == L'?' )
 			{
 				addNotFoundApiToModuleList( &importThunk );
 			}
 			else
 			{
-				if ( _wcsicmp( importThunk.moduleName, prevModuleName ) != 0 )
+				if ( _wcsicmp( importThunk.pModuleName, prevModuleName ) != 0 )
 				{
-					addModuleToModuleList( importThunk.moduleName, importThunk.rva );
+					addModuleToModuleList( importThunk.pModuleName, importThunk.uRVA );
 				}
 
 				addFunctionToModuleList( &importThunk );
 			}
 
-			wcsncpy_s( prevModuleName, importThunk.moduleName, MAX_PATH - 1 );
+			wcsncpy_s( prevModuleName, importThunk.pModuleName, MAX_PATH - 1 );
 		}
 
-		moduleThunk.thunkList.clear( );
+		moduleThunk.mpThunkList.clear( );
 	}
 
-	moduleList = std::move( moduleListNew );
-	moduleListNew.clear( );
+	vModuleList = std::move( mpModuleListNew );
+	mpModuleListNew.clear( );
 }
 
 
-bool ImportsHandling::findNewModules( std::map<DWORD_PTR, ImportThunk>& thunkList )
+bool ImportsHandling::findNewModules( std::map<std::uintptr_t, ImportThunk>& mpThunkList )
 {
 	throw std::exception( "The method or operation is not implemented." );
 }
 
-bool ImportsHandling::addModuleToModuleList( const WCHAR* moduleName, DWORD_PTR firstThunk )
+bool ImportsHandling::addModuleToModuleList( const wchar_t* pModuleName, std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk pModule;
+	ImportModuleThunk ModuleThunk;
 
-	pModule.firstThunk = firstThunk;
-	wcscpy_s( pModule.moduleName, moduleName );
+	ModuleThunk.uFirstThunk = uFirstThunk;
+	wcscpy_s( ModuleThunk.pModuleName, pModuleName );
 
-	pModule.key = pModule.firstThunk;
-	moduleListNew[ pModule.key ] = std::move( pModule );
+	ModuleThunk.uKey = ModuleThunk.uFirstThunk;
+	mpModuleListNew[ ModuleThunk.uKey ] = std::move( ModuleThunk );
 	return true;
 }
 
-bool ImportsHandling::isNewModule( const WCHAR* moduleName )
+bool ImportsHandling::isNewModule( const wchar_t* pModuleName )
 {
-	return std::none_of( moduleListNew.begin( ), moduleListNew.end( ),
-		[ moduleName ]( const auto& pair ) {
-			return _wcsicmp( pair.second.moduleName, moduleName ) == 0;
+	return std::none_of( mpModuleListNew.begin( ), mpModuleListNew.end( ),
+		[pModuleName]( const auto& pair ) {
+			return _wcsicmp( pair.second.pModuleName, pModuleName ) == 0;
 		} );
 }
 
-void ImportsHandling::addUnknownModuleToModuleList( DWORD_PTR firstThunk )
+void ImportsHandling::addUnknownModuleToModuleList( std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk pModule;
+	ImportModuleThunk ModuleThunk;
 
-	pModule.firstThunk = firstThunk;
-	wcsncpy_s( pModule.moduleName, L"?", _TRUNCATE );
+	ModuleThunk.uFirstThunk = uFirstThunk;
+	wcsncpy_s( ModuleThunk.pModuleName, L"?", _TRUNCATE );
 
-	pModule.key = pModule.firstThunk;
-	moduleListNew[ pModule.key ] = std::move( pModule );
+	ModuleThunk.uKey = ModuleThunk.uFirstThunk;
+	mpModuleListNew[ ModuleThunk.uKey ] = std::move( ModuleThunk );
 }
 
-bool ImportsHandling::addNotFoundApiToModuleList( const ImportThunk* apiNotFound )
+bool ImportsHandling::addNotFoundApiToModuleList( const ImportThunk* pApiNotFound )
 {
-	ImportThunk pImport{};
-	ImportModuleThunk* pModule = nullptr;
-	DWORD_PTR rva = apiNotFound->rva;
+	ImportThunk ImportThk {};
+	ImportModuleThunk* pModuleThunk = nullptr;
+	std::uintptr_t RVA = pApiNotFound->uRVA;
 
-	auto it_module = std::find_if( moduleListNew.begin( ), moduleListNew.end( ),
-		[ rva ]( const auto& pair ) { return rva < pair.second.firstThunk; } );
+	auto itModule = std::find_if( mpModuleListNew.begin( ), mpModuleListNew.end( ),
+		[RVA]( const auto& pair ) { return RVA < pair.second.uFirstThunk; } );
 
-	if ( it_module != moduleListNew.begin( ) ) {
-		--it_module; // Adjust to the correct module if not at the beginning
+	if ( itModule != mpModuleListNew.begin( ) ) {
+		--itModule; // Adjust to the correct pModule if not at the beginning
 	}
 
-	if ( moduleListNew.empty( ) || it_module->second.moduleName[ 0 ] != L'?' ) {
-		addUnknownModuleToModuleList( apiNotFound->rva );
-		pModule = &moduleListNew.find( rva )->second;
+	if ( mpModuleListNew.empty( ) || itModule->second.pModuleName[ 0 ] != L'?' ) {
+		addUnknownModuleToModuleList( pApiNotFound->uRVA );
+		pModuleThunk = &mpModuleListNew.find( RVA )->second;
 	}
 	else {
-		pModule = &it_module->second;
+		pModuleThunk = &itModule->second;
 	}
 
-	if ( !pModule ) {
-		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found rva " PRINTF_DWORD_PTR_FULL, rva );
+	if ( !pModuleThunk ) {
+		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL, RVA );
 		return false;
 	}
 
-	pImport.suspect = true;
-	pImport.valid = false;
-	pImport.va = apiNotFound->va;
-	pImport.rva = apiNotFound->rva;
-	pImport.apiAddressVA = apiNotFound->apiAddressVA;
-	pImport.ordinal = 0;
+	ImportThk.bSuspect = true;
+	ImportThk.bValid = false;
+	ImportThk.uVA = pApiNotFound->uVA;
+	ImportThk.uRVA = pApiNotFound->uRVA;
+	ImportThk.uApiAddressVA = pApiNotFound->uApiAddressVA;
+	ImportThk.uOrdinal = 0;
 
-	wcscpy_s( pImport.moduleName, L"?" );
-	strcpy_s( pImport.name, "?" );
+	wcscpy_s( ImportThk.pModuleName, L"?" );
+	strcpy_s( ImportThk.name, "?" );
 
-	pImport.key = pImport.rva;
-	pModule->thunkList[ pImport.key ] = std::move( pImport );
+	ImportThk.uKey = ImportThk.uRVA;
+	pModuleThunk->mpThunkList[ ImportThk.uKey ] = std::move( ImportThk );
 	return true;
 }
 
-bool ImportsHandling::addFunctionToModuleList( const ImportThunk* apiFound )
+bool ImportsHandling::addFunctionToModuleList( const ImportThunk* pApiFound )
 {
-	ImportThunk pImport{};
+	ImportThunk ImportThk {};
 	ImportModuleThunk* pModule = nullptr;
 
-	auto it_module = std::find_if( moduleListNew.begin( ), moduleListNew.end( ),
-		[ apiFound ]( const auto& pair ) { return apiFound->rva < pair.second.firstThunk; } );
+	auto itModule = std::find_if( mpModuleListNew.begin( ), mpModuleListNew.end( ),
+		[pApiFound]( const auto& pair ) { return pApiFound->uRVA < pair.second.uFirstThunk; } );
 
-	if ( it_module != moduleListNew.begin( ) ) {
-		--it_module; // Adjust to the correct module if not at the beginning
+	if ( itModule != mpModuleListNew.begin( ) ) {
+		--itModule; // Adjust to the correct pModule if not at the beginning
 	}
 
-	if ( it_module == moduleListNew.end( ) ) {
-		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found rva " PRINTF_DWORD_PTR_FULL, apiFound->rva );
+	if ( itModule == mpModuleListNew.end( ) ) {
+		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL, pApiFound->RVA );
 		return false;
 	}
 
-	pModule = &it_module->second;
+	pModule = &itModule->second;
 
-	pImport.suspect = apiFound->suspect;
-	pImport.valid = apiFound->valid;
-	pImport.va = apiFound->va;
-	pImport.rva = apiFound->rva;
-	pImport.apiAddressVA = apiFound->apiAddressVA;
-	pImport.ordinal = apiFound->ordinal;
-	pImport.hint = apiFound->hint;
+	ImportThk.bSuspect = pApiFound->bSuspect;
+	ImportThk.bValid = pApiFound->bValid;
+	ImportThk.uVA = pApiFound->uVA;
+	ImportThk.uRVA = pApiFound->uRVA;
+	ImportThk.uApiAddressVA = pApiFound->uApiAddressVA;
+	ImportThk.uOrdinal = pApiFound->uOrdinal;
+	ImportThk.uHint = pApiFound->uHint;
 
-	wcscpy_s( pImport.moduleName, apiFound->moduleName );
-	strcpy_s( pImport.name, apiFound->name );
+	wcscpy_s( ImportThk.pModuleName, pApiFound->pModuleName );
+	strcpy_s( ImportThk.name, pApiFound->name );
 
-	pImport.key = pImport.rva;
-	pModule->thunkList[ pImport.key ] = std::move( pImport );
+	ImportThk.uKey = ImportThk.uRVA;
+	pModule->mpThunkList[ ImportThk.uKey ] = std::move( ImportThk );
 	return true;
 }
 
