@@ -29,6 +29,89 @@ HANDLE __stdcall ApiTools::CreateRemoteThread( HANDLE hProcess, void* lpStartAdd
 	return ::CreateRemoteThread( hProcess, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>( lpStartAddress ), lpParameter, 0, nullptr );
 }
 
+HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId ) {
+
+	HANDLE hProcess = 0;
+
+	CLIENT_ID cid = { 0 };
+
+	OBJECT_ATTRIBUTES ObjectAttributes{};
+
+	InitializeObjectAttributes( &ObjectAttributes, 0, 0, 0, 0 );
+	cid.UniqueProcess = reinterpret_cast<HANDLE>( static_cast<size_t>( dwProcessId ) );
+
+	NTSTATUS ntStatus = NtOpenProcess( &hProcess, dwDesiredAccess, &ObjectAttributes, &cid );
+
+	if ( NT_SUCCESS( ntStatus ) )
+	{
+		return hProcess;
+	}
+
+	//LOGS_DEBUG( "NtOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, RtlNtStatusToDosError( ntStatus ) );
+
+	// I have already failed using the native NtOpenProcess, but not the wrapped OpenProcess
+
+	return ::OpenProcess( dwDesiredAccess, bInheritHandle, dwProcessId );
+}
+
+BOOL __stdcall ApiTools::IsWow64Process( HANDLE hProcess, PBOOL Wow64Process ) {
+
+	ULONG ReturnLength = 0;
+	PVOID pWow64Process = nullptr;
+	NTSTATUS status = ApiTools::QueryInformationProcess( hProcess, ProcessWow64Information, &pWow64Process, sizeof( pWow64Process ), &ReturnLength );
+
+	if ( status == 0 && pWow64Process != nullptr ) {
+		*Wow64Process = TRUE;
+	}
+	else {
+		*Wow64Process = FALSE;
+	}
+	return status == 0;
+}
+
+std::unique_ptr<void, VirtualFreeDeleter> ApiTools::GetSystemInfo( SYSTEM_INFORMATION_CLASS SystemInformationClass ) {
+	ULONG uBufferSize = 0x1000 * 10;
+
+	// Use smart pointer with custom deleter
+	auto pBuffer = std::unique_ptr<void, VirtualFreeDeleter>(
+		VirtualAlloc( nullptr, uBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE ) );
+
+	if ( !pBuffer ) return nullptr;
+
+	NTSTATUS Status = 0;
+
+	while ( true ) {
+		Status = NtQuerySystemInformation( SystemInformationClass, pBuffer.get( ), uBufferSize, &uBufferSize );
+
+		if ( Status == STATUS_INFO_LENGTH_MISMATCH || Status == STATUS_BUFFER_TOO_SMALL ) {
+			// Release and reallocate buffer
+			pBuffer.reset( VirtualAlloc( nullptr, uBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE ) );
+			if ( !pBuffer ) return nullptr;
+		}
+		else {
+			break;
+		}
+	}
+
+	if ( !NT_SUCCESS( Status ) ) {
+		return nullptr;
+	}
+
+	return pBuffer;
+}
+
+// ========================================================================================================
+// ========================================================================================================
+// ========================================================================================================
+// NATIVE CALLS
+// ========================================================================================================
+// ========================================================================================================
+// ========================================================================================================
+
+void ApiTools::CloseHandle( HANDLE hObject ) {
+	::NtClose( hObject );
+}
+
 LPVOID __stdcall ApiTools::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect )
 {
 	PVOID pAddress = lpAddress;
@@ -37,7 +120,7 @@ LPVOID __stdcall ApiTools::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SI
 
 	const NTSTATUS Status = NtAllocateVirtualMemory( hProcess, &pAddress, 0, &Size, flAllocationType, flProtect );
 
-	return  ( Status == 0 ) ? pAddress : NULL;
+	return  ( Status == 0 ) ? pAddress : nullptr;
 }
 
 SIZE_T __stdcall ApiTools::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
@@ -45,13 +128,14 @@ SIZE_T __stdcall ApiTools::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PM
 	SIZE_T rSize;
 
 	const NTSTATUS Status = ApiTools::QueryVirtualMemory( hProcess, lpAddress, MemoryBasicInformation, lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ), &rSize );
-	
+
 	return  ( Status == 0 ) ? rSize : 0;
 }
 
 NTSTATUS __stdcall ApiTools::QueryVirtualMemory( HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength ) {
 	return NtQueryVirtualMemory( ProcessHandle, BaseAddress, MemoryInformationClass, MemoryInformation, MemoryInformationLength, ReturnLength );
 }
+
 BOOL __stdcall ApiTools::VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect )
 {
 	PVOID pAddress = lpAddress;
@@ -82,35 +166,10 @@ BOOL __stdcall ApiTools::ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddres
 
 BOOL __stdcall ApiTools::WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
 	LPCVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten ) {
-	return NtWriteVirtualMemory( hProcess, lpBaseAddress, (LPVOID)lpBuffer, nSize, lpNumberOfBytesWritten ) == 0;
+	return NtWriteVirtualMemory( hProcess, lpBaseAddress, const_cast<LPVOID>(lpBuffer), nSize, lpNumberOfBytesWritten ) == 0;
 }
 
-HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId ) {
+NTSTATUS __stdcall ApiTools::QueryInformationProcess( HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength ) {
 
-	HANDLE hProcess = 0;
-
-	CLIENT_ID cid = { 0 };
-
-	OBJECT_ATTRIBUTES ObjectAttributes{};
-
-	InitializeObjectAttributes( &ObjectAttributes, 0, 0, 0, 0 );
-	cid.UniqueProcess = reinterpret_cast<HANDLE>( static_cast<size_t>( dwProcessId ) );
-
-	NTSTATUS ntStatus = NtOpenProcess( &hProcess, dwDesiredAccess, &ObjectAttributes, &cid );
-
-	if ( NT_SUCCESS( ntStatus ) )
-	{
-		return hProcess;
-	}
-	else
-	{
-		//LOGS_DEBUG( "NtOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, RtlNtStatusToDosError( ntStatus ) );
-	}
-
-	return ::OpenProcess( dwDesiredAccess, bInheritHandle, dwProcessId );
-}
-
-
-void ApiTools::CloseHandle( HANDLE hObject ) {
-	::CloseHandle( hObject );
+	return NtQueryInformationProcess( ProcessHandle, ProcessInformationClass, ProcessInformation, ProcessInformationLength, ReturnLength );
 }

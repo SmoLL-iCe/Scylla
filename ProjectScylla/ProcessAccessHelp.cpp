@@ -567,7 +567,7 @@ bool ProcessAccessHelp::getSizeOfImageCurrentProcess( )
 	return false;	
 }
 
-SIZE_T ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, DWORD_PTR moduleBase )
+DWORD ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, DWORD_PTR moduleBase )
 {
 	SIZE_T sizeOfImage = 0;
 	MEMORY_BASIC_INFORMATION lpBuffer = { 0 };
@@ -607,7 +607,7 @@ SIZE_T ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, DWORD_PTR
 
 	} while ( lpBuffer.Type == MEM_IMAGE );
 
-	return sizeOfImage;
+	return static_cast<DWORD>( sizeOfImage );
 }
 
 DWORD ProcessAccessHelp::getEntryPointFromFile( const WCHAR* filePath )

@@ -7,8 +7,6 @@
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
 
-typedef BOOL (WINAPI *def_IsWow64Process)(HANDLE hProcess,PBOOL Wow64Process);
-
 class Process {
 public:
 	DWORD PID;
@@ -36,12 +34,9 @@ enum ProcessType {
 class ProcessLister {
 public:
 
-	static def_IsWow64Process _IsWow64Process;
-
 	ProcessLister()
 	{
 		deviceNameResolver = new DeviceNameResolver();
-		_IsWow64Process = (def_IsWow64Process)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "IsWow64Process");
 	}
 	~ProcessLister()
 	{
@@ -60,7 +55,6 @@ private:
 	ProcessType checkIsProcess64(HANDLE hProcess);
 
 	bool getAbsoluteFilePath(HANDLE hProcess, Process * process);
-
 
     void handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess );
     void getProcessImageInformation( HANDLE hProcess, Process* process );

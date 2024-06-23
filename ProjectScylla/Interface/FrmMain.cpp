@@ -170,10 +170,9 @@ void frame_controls( gl_window* instance )
                         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
                         scyllaCtx.iatAutosearchActionHandler( );
                         scyllaCtx.getImportsActionHandler( );
+
+                        //scyllaCtx.dumpActionHandler( );
 					} ).detach( );
-
-
-				//scyllaCtx.dumpActionHandler( );
 
 			}
 

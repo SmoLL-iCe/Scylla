@@ -3,28 +3,39 @@
 #include <iostream>
 #include "ntos.h"
 
+struct VirtualFreeDeleter {
+	void operator()( void* ptr ) const {
+		if ( ptr ) {
+			VirtualFree( ptr, 0, MEM_RELEASE );
+		}
+	}
+};
+
 namespace ApiTools
 {
 	void CloseHandle( HANDLE hObject );
+
+	std::unique_ptr<void, VirtualFreeDeleter> GetSystemInfo( SYSTEM_INFORMATION_CLASS SystemInformationClass );
+
+	NTSTATUS __stdcall QueryVirtualMemory( HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength );
+	NTSTATUS __stdcall QueryInformationProcess( HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength );
+
+
+	BOOL __stdcall IsWow64Process( HANDLE hProcess, PBOOL Wow64Process );
+
 	SIZE_T __stdcall VirtualQuery( LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength );
 	LPVOID __stdcall VirtualAlloc( LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect );
 	BOOL __stdcall VirtualProtect( LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect );
 	BOOL __stdcall VirtualFree( LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType );
-
-
-	NTSTATUS __stdcall QueryVirtualMemory( HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength );
-
 
 	SIZE_T __stdcall VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength );
 	LPVOID __stdcall VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect );
 	BOOL __stdcall VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect );
 	BOOL __stdcall VirtualFreeEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType );
 
-    BOOL __stdcall ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
-        LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead );
+    BOOL __stdcall ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead );
 
-    BOOL __stdcall WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress, 
-        LPCVOID lpBuffer, SIZE_T nSize, SIZE_T * lpNumberOfBytesWritten );
+    BOOL __stdcall WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress, LPCVOID lpBuffer, SIZE_T nSize, SIZE_T * lpNumberOfBytesWritten );
 
 	HANDLE __stdcall OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId );
 

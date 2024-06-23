@@ -1,6 +1,3 @@
-#include <Windows.h>
-
-
 #pragma once
 
 #include <Windows.h>

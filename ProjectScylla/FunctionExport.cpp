@@ -52,7 +52,7 @@ BOOL WINAPI ScyllaRebuildFileW(const WCHAR * fileToRebuild, BOOL removeDosStub, 
 		{
 			if (updatePeHeaderChecksum)
 			{
-				PeParser::updatePeHeaderChecksum(fileToRebuild, (DWORD)ProcessAccessHelp::getFileSize(fileToRebuild));
+				PeParser::updatePeHeaderChecksum(fileToRebuild, ProcessAccessHelp::getFileSize(fileToRebuild));
 			}
 			return TRUE;
 		}

@@ -1,16 +1,11 @@
 #include "ProcessLister.h"
-
 #include "SystemInformation.h"
 #include "Logger.h"
 #include "ProcessAccessHelp.h"
-
 #include <algorithm>
 #include "Tools/Logs.h"
 #include "WinApi/ApiTools.h"
-
-//#define DEBUG_COMMENTS
-
-def_IsWow64Process ProcessLister::_IsWow64Process = 0;
+#include <array> 
 
 std::vector<Process>& ProcessLister::getProcessList( )
 {
@@ -23,24 +18,14 @@ bool ProcessLister::isWindows64( )
     //compiled 64bit application
     return true;
 #else
-    //32bit exe, check wow64
     BOOL bIsWow64 = FALSE;
 
-    //not available in all windows operating systems
-    //Minimum supported client: Windows Vista, Windows XP with SP2
-    //Minimum supported server: Windows Server 2008, Windows Server 2003 with SP1
+    ApiTools::IsWow64Process( reinterpret_cast<HANDLE>( -1 ), &bIsWow64 );
 
-    if ( _IsWow64Process )
-    {
-        _IsWow64Process( GetCurrentProcess( ), &bIsWow64 );
-        return ( bIsWow64 != FALSE );
-    }
-
-    return false;
+    return ( bIsWow64 != FALSE );  
 #endif
 }
 
-//only needed in windows xp
 DWORD ProcessLister::setDebugPrivileges( )
 {
     DWORD err = 0;
@@ -52,7 +37,7 @@ DWORD ProcessLister::setDebugPrivileges( )
         return GetLastError( );
     }
 
-    if ( !OpenProcessToken( GetCurrentProcess( ), TOKEN_ADJUST_PRIVILEGES, &hToken ) )
+    if ( !OpenProcessToken( reinterpret_cast<HANDLE>( -1 ), TOKEN_ADJUST_PRIVILEGES, &hToken ) )
     {
         err = GetLastError( );
         if ( hToken ) CloseHandle( hToken );
@@ -65,13 +50,10 @@ DWORD ProcessLister::setDebugPrivileges( )
     AdjustTokenPrivileges( hToken, false, &Debug_Privileges, 0, NULL, NULL );
 
     CloseHandle( hToken );
+
     return GetLastError( );
 }
 
-
-/************************************************************************/
-/* Check if a process is 32 or 64bit                                    */
-/************************************************************************/
 ProcessType ProcessLister::checkIsProcess64( HANDLE hProcess )
 {
     BOOL bIsWow64 = FALSE;
@@ -87,91 +69,66 @@ ProcessType ProcessLister::checkIsProcess64( HANDLE hProcess )
         return PROCESS_32;
     }
 
-    _IsWow64Process( hProcess, &bIsWow64 );
+    ApiTools::IsWow64Process( hProcess, &bIsWow64 );
 
     if ( bIsWow64 == FALSE )
     {
         //process not running under wow
         return PROCESS_64;
     }
-    else
-    {
-        //process running under wow -> 32bit
-        return PROCESS_32;
-    }
+
+    //process running under wow -> 32bit
+    return PROCESS_32;  
 }
 
-bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* process )
-{
-    WCHAR processPath[ MAX_PATH ];
-    bool retVal = false;
-
-    wcscpy_s( process->fullPath, L"Unknown path" );
-
-    if ( !hProcess )
-    {
-        //missing rights
+bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* process ) {
+    if ( !hProcess ) {
+        // Missing rights or invalid handle.
         return false;
     }
 
+    std::array<WCHAR, MAX_PATH> processPath{};
+    wcscpy_s( process->fullPath, L"Unknown path" );
 
+    //some virtual volumes
 
-    if ( GetProcessImageFileNameW( hProcess, processPath, _countof( processPath ) ) > 0 )
-    {
-        if ( !deviceNameResolver->resolveDeviceLongNameToShort( processPath, process->fullPath ) )
-        {
+    if ( GetProcessImageFileNameW( hProcess, processPath.data( ), processPath.size( ) ) > 0 ) {
 
-            LOGS_DEBUG( "getAbsoluteFilePath :: resolveDeviceLongNameToShort failed with path %s", processPath );
-
-            //some virtual volumes
-
-            if ( GetModuleFileNameExW( hProcess, 0, process->fullPath, _countof( process->fullPath ) ) != 0 )
-            {
-                retVal = true;
-            }
+        if ( deviceNameResolver->resolveDeviceLongNameToShort( processPath.data( ), process->fullPath ) ) {
+            return true; 
         }
-        else
-        {
-            retVal = true;
+        else {
+            LOGS_DEBUG( "getAbsoluteFilePath :: resolveDeviceLongNameToShort failed with path %ls", processPath.data( ) );
         }
     }
-    else
-    {
-
+    else {
         LOGS_DEBUG( "getAbsoluteFilePath :: GetProcessImageFileName failed %u", GetLastError( ) );
-
-        if ( GetModuleFileNameExW( hProcess, 0, process->fullPath, _countof( process->fullPath ) ) != 0 )
-        {
-            retVal = true;
-        }
     }
 
-    return retVal;
+    if ( GetModuleFileNameExW( hProcess, nullptr, process->fullPath, static_cast<DWORD>( sizeof( process->fullPath ) / 2 ) ) != 0 ) {
+        return true;
+    }
+
+    return false;
 }
 
 std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
-    ULONG retLength = 0;
-    ULONG bufferLength = sizeof( SYSTEM_PROCESSES_INFORMATION ) * 1024;
-    std::unique_ptr<BYTE[ ]> buffer( new BYTE[ bufferLength ] );
-    PSYSTEM_PROCESSES_INFORMATION pIter;
 
     if ( !processList.empty( ) ) {
         processList.clear( );
     }
     else {
-        processList.reserve( 34 );
+        processList.reserve( 300 );
     }
 
-    while ( NtQuerySystemInformation( SystemProcessInformation, buffer.get( ), bufferLength, &retLength ) == STATUS_INFO_LENGTH_MISMATCH ) {
-        bufferLength = retLength;
-        buffer.reset( new BYTE[ bufferLength ] );
-    }
+    std::unique_ptr<void, VirtualFreeDeleter> buffer = ApiTools::GetSystemInfo( SystemProcessInformation );
 
     if ( !buffer ) {
         return processList;
     }
 
-    pIter = reinterpret_cast<PSYSTEM_PROCESSES_INFORMATION>( buffer.get( ) );
+    PSYSTEM_PROCESSES_INFORMATION pIter = reinterpret_cast<PSYSTEM_PROCESSES_INFORMATION>( buffer.get( ) );
+
     while ( true ) {
         if ( reinterpret_cast<uintptr_t>( pIter->UniqueProcessId ) > 4 ) {
             handleProcessInformationAndAddToList( pIter );
@@ -192,7 +149,8 @@ std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
 
 void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess )
 {
-    Process process;
+    Process process{};
+
     WCHAR tempProcessName[ MAX_PATH * 2 ] = { 0 };
 
     process.PID = static_cast<DWORD>( reinterpret_cast<size_t>( pProcess->UniqueProcessId ) );
@@ -215,7 +173,9 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
             wcscpy_s( process.filename, tempProcessName );
 
             getAbsoluteFilePath( hProcess, &process );
+
             process.pebAddress = getPebAddressFromProcess( hProcess );
+
             getProcessImageInformation( hProcess, &process );
 
             processList.push_back( process );
@@ -232,12 +192,12 @@ void ProcessLister::getProcessImageInformation( HANDLE hProcess, Process* proces
 
     if ( hProcess && process->pebAddress )
     {
-        PEB* peb = (PEB*)process->pebAddress;
+        PEB* peb = reinterpret_cast<PEB*>( process->pebAddress );
 
-        if ( ReadProcessMemory( hProcess, &peb->ImageBaseAddress, &readImagebase, sizeof( DWORD_PTR ), 0 ) )
+        if ( ApiTools::ReadProcessMemory( hProcess, &peb->ImageBaseAddress, &readImagebase, sizeof( DWORD_PTR ), 0 ) )
         {
             process->imageBase = readImagebase;
-            process->imageSize = (DWORD)ProcessAccessHelp::getSizeOfImageProcess( hProcess, process->imageBase );
+            process->imageSize = ProcessAccessHelp::getSizeOfImageProcess( hProcess, process->imageBase );
         }
     }
 }
@@ -247,22 +207,24 @@ DWORD_PTR ProcessLister::getPebAddressFromProcess( HANDLE hProcess )
     if ( hProcess )
     {
         ULONG RequiredLen = 0;
+
         void* PebAddress = 0;
+
         PROCESS_BASIC_INFORMATION myProcessBasicInformation[ 5 ] = { 0 };
 
-        if ( NtQueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, sizeof( PROCESS_BASIC_INFORMATION ), &RequiredLen ) == STATUS_SUCCESS )
+        if ( ApiTools::QueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, sizeof( PROCESS_BASIC_INFORMATION ), &RequiredLen ) == STATUS_SUCCESS )
         {
-            PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
+            PebAddress = myProcessBasicInformation->PebBaseAddress;
         }
         else
         {
-            if ( NtQueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, RequiredLen, &RequiredLen ) == STATUS_SUCCESS )
+            if ( ApiTools::QueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, RequiredLen, &RequiredLen ) == STATUS_SUCCESS )
             {
-                PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
+                PebAddress = myProcessBasicInformation->PebBaseAddress;
             }
         }
 
-        return (DWORD_PTR)PebAddress;
+        return reinterpret_cast<DWORD_PTR>( PebAddress );
     }
 
     return 0;

@@ -1,7 +1,7 @@
 #pragma once
-
 #include <windows.h>
 #include <vector>
+#include <memory>
 
 class PeSection
 {
@@ -115,8 +115,8 @@ protected:
 	DWORD overlaySize;
 	/************************************************************************/
 
-	BYTE * fileMemory;
-	BYTE * headerMemory;
+	std::unique_ptr<BYTE[]> fileMemory;
+	std::unique_ptr<BYTE[ ]> headerMemory;
 
 	HANDLE hFile;
 	DWORD fileSize;
@@ -135,7 +135,6 @@ protected:
 	
 	DWORD isMemoryNotNull( BYTE * data, int dataSize );
 	bool openWriteFileHandle( const WCHAR * newFile );
-	bool writeZeroMemoryToFile(HANDLE hFile, DWORD fileOffset, DWORD size);
 
 	bool readPeSectionFromFile( DWORD readOffset, PeFileSection & peFileSection );
 	bool readPeSectionFromProcess( DWORD_PTR readOffset, PeFileSection & peFileSection );

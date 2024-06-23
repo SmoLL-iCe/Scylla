@@ -5,7 +5,7 @@
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    ProcessLister::setDebugPrivileges( );
 
     gui_init( );
 

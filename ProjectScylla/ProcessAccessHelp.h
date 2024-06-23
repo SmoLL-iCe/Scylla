@@ -201,7 +201,7 @@ public:
 	/*
 	 * Get real sizeOfImage value
 	 */
-	static SIZE_T getSizeOfImageProcess(HANDLE processHandle, DWORD_PTR moduleBase);
+	static DWORD getSizeOfImageProcess(HANDLE processHandle, DWORD_PTR moduleBase);
 
 	/*
 	 * Get real sizeOfImage value current process
