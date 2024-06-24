@@ -344,7 +344,7 @@ bool ImportsHandling::addNotFoundApiToModuleList( const ImportThunk* pApiNotFoun
 	}
 
 	if ( !pModuleThunk ) {
-		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL, RVA );
+		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL_S, RVA );
 		return false;
 	}
 
@@ -376,7 +376,7 @@ bool ImportsHandling::addFunctionToModuleList( const ImportThunk* pApiFound )
 	}
 
 	if ( itModule == mpModuleListNew.end( ) ) {
-		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL, pApiFound->RVA );
+		LOGS_DEBUG( "ImportsHandling::addFunction pModule not found RVA " PRINTF_DWORD_PTR_FULL_S, pApiFound->uRVA );
 		return false;
 	}
 

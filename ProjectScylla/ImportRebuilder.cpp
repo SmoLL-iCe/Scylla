@@ -238,7 +238,7 @@ std::uint32_t ImportRebuilder::fillImportSection( std::map<std::uintptr_t, Impor
 			//check wrong iat pointer
 			if ( !pThunk )
 			{
-				LOGS_DEBUG( "fillImportSection :: Failed to get pThunk RVA: %X", pImportThunk->RVA );
+				LOGS_DEBUG( "fillImportSection :: Failed to get pThunk RVA: %X", pImportThunk->uRVA );
 
 				return 0;
 			}

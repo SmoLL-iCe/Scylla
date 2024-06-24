@@ -473,7 +473,7 @@ void IATReferenceScan::checkMemoryRangeAndAddToList( IATReference* pRef, _DInst*
 				_DecodedInst inst;
 				distorm_format( &ProcessAccessHelp::decomposerCi, pInstruction, &inst );
 				LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S,
-					pRef->uAddressVA, ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size, pRef.uTargetAddressInIat );
+					pRef->uAddressVA, ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size, pRef->uTargetAddressInIat );
 
 				vIatDirectImportList.push_back( *pRef );
 			}

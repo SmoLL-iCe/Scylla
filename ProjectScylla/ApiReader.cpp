@@ -550,7 +550,7 @@ ApiInfo* ApiReader::getApiByVirtualAddress( std::uintptr_t uVirtualAddress, bool
 
 	for ( auto& it = range.first; it != range.second; ++it ) {
 		auto pApiFound = it->second;
-		LOGS_DEBUG( "-> Possible API: %s ord: %d ", pApiFound->name.c_str( ), pApiFound->uOrdinal );
+		LOGS_DEBUG( "-> Possible API: %s ord: %d ", pApiFound->name, pApiFound->uOrdinal );
 	}
 
 	return reinterpret_cast<ApiInfo*>( 1 );
@@ -659,7 +659,7 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 				else
 				{
 					nCountApiFound++;
-					LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " %ls %d %s", pApiFound->VA, pApiFound->pModule->getFilename( ), pApiFound->uOrdinal, pApiFound->name );
+					LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " %ls %d %s", pApiFound->uVA, pApiFound->pModule->getFilename( ), pApiFound->uOrdinal, pApiFound->name );
 
 					std::uintptr_t uIatEntryAddress = uAddressIAT + reinterpret_cast<std::uintptr_t>( &uAddress ) - reinterpret_cast<std::uintptr_t>( pIatBuffer );
 					if ( pModule != pApiFound->pModule )
