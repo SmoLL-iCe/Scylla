@@ -164,10 +164,10 @@ void FrameControls( glWindow* instance )
                 std::thread( [&]( )
                     {
                         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
-                        scyllaCtx.iatAutosearchActionHandler( );
-                        scyllaCtx.getImportsActionHandler( );
+                        //scyllaCtx.iatAutosearchActionHandler( );
+                        //scyllaCtx.getImportsActionHandler( );
 
-                        //scyllaCtx.dumpActionHandler( );
+                        scyllaCtx.dumpActionHandler( );
                     } ).detach( );
 
             }

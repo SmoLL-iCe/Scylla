@@ -38,7 +38,8 @@ public:
 class PeParser
 {
 public:
-	PeParser( const wchar_t* file, bool bReadSectionHeaders = true );
+
+	PeParser( const wchar_t* pFile, bool bReadSectionHeaders = true );
 	PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders = true );
 
 	~PeParser( );
@@ -57,7 +58,7 @@ public:
 	bool hasRelocationDirectory( );
 	bool hasOverlayData( );
 
-	std::uint32_t getEntryPoint( );
+	std::uint32_t getEntryPoint( ) const;
 
 	bool getSectionNameUnicode( const int nSectionIndex, wchar_t* pOutput, const int outputLen );
 
@@ -90,7 +91,7 @@ public:
 	IMAGE_DATA_DIRECTORY* getDirectory( const int directoryIndex );
 protected:
 	PeParser( );
-
+	bool getImageData( );
 
 	static const std::uint32_t FileAlignmentConstant = 0x200;
 
@@ -118,6 +119,8 @@ protected:
 
 	std::unique_ptr<std::uint8_t[ ]> pHeaderMemory;
 
+	std::vector<std::uint8_t> vImageData;
+
 	HANDLE hFile;
 	std::uint32_t uFileSize;
 
@@ -128,7 +131,8 @@ protected:
 	bool getSectionHeaders( );
 	void getDosAndNtHeader( std::uint8_t* pMemory, LONG size );
 	std::uint32_t calcCorrectPeHeaderSize( bool bReadSectionHeaders ) const;
-	std::uint32_t getInitialHeaderReadSize( bool bReadSectionHeaders );
+	std::uint32_t getImageSize() const;
+	std::uint32_t getInitialHeaderReadSize( );
 	bool openFileHandle( );
 	void closeFileHandle( );
 	void initClass( );
@@ -141,8 +145,10 @@ protected:
 
 	bool readSectionFromProcess( const std::uintptr_t uReadOffset, PeFileSection& peFileSection );
 	bool readSectionFromFile( const std::uint32_t uReadOffset, PeFileSection& peFileSection );
-	bool readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess );
+	bool readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess );
 
+
+	bool readMemoryData( const std::uintptr_t uReadOffset, std::size_t szSize, LPVOID pDataBuffer );
 
 	std::uintptr_t getStandardImagebase( ) const;
 

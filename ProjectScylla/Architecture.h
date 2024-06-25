@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <cstdint>
 
-#ifdef _WIN64
+#ifdef WIN64
 
 #define ARCHITECTURE_S          "x64"
 #define PRINTF_DWORD_PTR_S      "%I64X"

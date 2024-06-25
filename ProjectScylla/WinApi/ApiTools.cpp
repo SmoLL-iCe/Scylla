@@ -125,6 +125,8 @@ LPVOID __stdcall ApiTools::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SI
 
 SIZE_T __stdcall ApiTools::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
 {
+
+	return ::VirtualQueryEx( hProcess, lpAddress, lpBuffer, dwLength );
 	SIZE_T rSize;
 
 	const NTSTATUS Status = ApiTools::QueryVirtualMemory( hProcess, lpAddress, MemoryBasicInformation, lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ), &rSize );

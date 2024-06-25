@@ -15,7 +15,7 @@ std::vector<Process>& ProcessLister::getProcessList( )
 
 bool ProcessLister::isWindows64( )
 {
-#ifdef _WIN64
+#ifdef WIN64
     //compiled 64bit application
     return true;
 #else
@@ -161,8 +161,8 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
     {
         ProcessType processType = checkIsProcess64( hProcess );
 
-#ifdef _WIN64
-        if ( processType == PROCESS_64 )
+#ifdef WIN64
+        if ( processType == PROCESS_64 || processType == PROCESS_32 )
 #else
         if ( processType == PROCESS_32 )
 #endif

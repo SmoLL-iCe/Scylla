@@ -47,12 +47,12 @@ public:
 	static bool isWindows64( );
 	static std::uint32_t setDebugPrivileges( );
 	std::vector<Process>& getProcessListSnapshotNative( );
+	static ProcessType checkIsProcess64( HANDLE hProcess );
 private:
 	std::vector<Process> vProcessList;
 
 	DeviceNameResolver* pDeviceNameResolver;
 
-	ProcessType checkIsProcess64( HANDLE hProcess );
 
 	bool getAbsoluteFilePath( HANDLE hProcess, Process* pProcess );
 

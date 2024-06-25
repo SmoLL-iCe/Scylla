@@ -122,23 +122,23 @@ std::uintptr_t IATSearch::findNextFunctionAddress( )
 	for ( std::uint32_t i = 0; i < uDecomposerInstructionsCount; i++ )
 	{
 
-		if ( decomposerResult[ i ].flags != FLAG_NOT_DECODABLE )
+		if ( decomposerResult[ i ].flags == FLAG_NOT_DECODABLE )
+			continue;
+
+		if ( META_GET_FC( decomposerResult[ i ].meta ) != FC_CALL && META_GET_FC( decomposerResult[ i ].meta ) != FC_UNC_BRANCH )
+			continue;
+
+		if ( decomposerResult[ i ].size < 5 )
+			continue;
+
+		if ( decomposerResult[ i ].ops[ 0 ].type == O_PC )
 		{
-			if ( META_GET_FC( decomposerResult[ i ].meta ) == FC_CALL || META_GET_FC( decomposerResult[ i ].meta ) == FC_UNC_BRANCH )
-			{
-				if ( decomposerResult[ i ].size >= 5 )
-				{
-					if ( decomposerResult[ i ].ops[ 0 ].type == O_PC )
-					{
+			distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
+			LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_TARGET( &decomposerResult[ i ] ) );
 
-						distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
-						LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_TARGET( &decomposerResult[ i ] ) );
-
-						return static_cast<std::uintptr_t>( INSTRUCTION_GET_TARGET( &decomposerResult[ i ] ) );
-					}
-				}
-			}
+			return static_cast<std::uintptr_t>( INSTRUCTION_GET_TARGET( &decomposerResult[ i ] ) );
 		}
+		
 	}
 
 	return 0;
@@ -150,40 +150,41 @@ std::uintptr_t IATSearch::findIATPointer( )
 
 	for ( std::uint32_t i = 0; i < uDecomposerInstructionsCount; i++ )
 	{
-		if ( decomposerResult[ i ].flags != FLAG_NOT_DECODABLE )
-		{
-			if ( META_GET_FC( decomposerResult[ i ].meta ) == FC_CALL || META_GET_FC( decomposerResult[ i ].meta ) == FC_UNC_BRANCH )
+		if ( decomposerResult[ i ].flags == FLAG_NOT_DECODABLE )
+			continue;
+
+		if ( META_GET_FC( decomposerResult[ i ].meta ) != FC_CALL && META_GET_FC( decomposerResult[ i ].meta ) != FC_UNC_BRANCH )
+			continue;
+
+		if ( decomposerResult[ i ].size < 5 )
+			continue;
+
+		if ( ProcessAccessHelp::is64BitProcess ) { 
+
+			if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
 			{
-				if ( decomposerResult[ i ].size >= 5 )
-				{
-#ifdef _WIN64
-					if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
-					{
+				distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
+				LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
 
-						distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
-						LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
-
-						return INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] );
-					}
-#else
-					if ( decomposerResult[ i ].ops[ 0 ].type == O_DISP )
-					{
-						//jmp dword ptr || call dword ptr
-
-						distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
-						LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
-
-						return static_cast<std::uintptr_t>( decomposerResult[ i ].disp );
-					}
-#endif
-
-				}
-					}
-				}
+				return INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] );
 			}
+		}
+		else
+		{
+			if ( decomposerResult[ i ].ops[ 0 ].type == O_DISP )
+			{
+				//jmp dword ptr || call dword ptr
+
+				distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
+				LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S, inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
+
+				return static_cast<std::uintptr_t>( decomposerResult[ i ].disp );
+			}
+		}
+	}
 
 	return 0;
-		}
+}
 
 bool IATSearch::isIATPointerValid( std::uintptr_t uIatPointer, bool bCheckRedirects )
 {
@@ -305,38 +306,40 @@ void IATSearch::findIATPointers( std::set<std::uintptr_t>& iatPointers )
 
 	for ( std::uint32_t i = 0; i < uDecomposerInstructionsCount; i++ )
 	{
-		if ( decomposerResult[ i ].flags != FLAG_NOT_DECODABLE )
+		if ( decomposerResult[ i ].flags == FLAG_NOT_DECODABLE )
+			continue;
+
+		if ( META_GET_FC( decomposerResult[ i ].meta ) != FC_CALL && META_GET_FC( decomposerResult[ i ].meta ) != FC_UNC_BRANCH )
+			continue;
+
+		if ( decomposerResult[ i ].size < 5 )
+			continue;
+				
+		if ( ProcessAccessHelp::is64BitProcess )
 		{
-			if ( META_GET_FC( decomposerResult[ i ].meta ) == FC_CALL || META_GET_FC( decomposerResult[ i ].meta ) == FC_UNC_BRANCH )
+			if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
 			{
-				if ( decomposerResult[ i ].size >= 5 )
-				{
-#ifdef _WIN64
-					if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
-					{
-						distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
-						LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S,
-							inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
+				distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
+				LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S,
+					inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
 
-						iatPointers.insert( INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
-					}
-#else
-					if ( decomposerResult[ i ].ops[ 0 ].type == O_DISP )
-					{
-						//jmp dword ptr || call dword ptr
-
-						distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
-						LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S,
-							inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
-
-						iatPointers.insert( static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
-					}
-#endif
-				}
+				iatPointers.insert( INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
 			}
-					}
-				}
+		}
+		else { 
+			if ( decomposerResult[ i ].ops[ 0 ].type == O_DISP )
+			{
+				//jmp dword ptr || call dword ptr
+
+				distorm_format( &decomposerCi, &decomposerResult[ i ], &inst );
+				LOGS_DEBUG( "%S %S %d %d - target uAddress: " PRINTF_DWORD_PTR_FULL_S,
+					inst.mnemonic.p, inst.operands.p, decomposerResult[ i ].ops[ 0 ].type, decomposerResult[ i ].size, static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
+
+				iatPointers.insert( static_cast<std::uintptr_t>( decomposerResult[ i ].disp ) );
 			}
+		}
+	}
+}
 
 void IATSearch::findExecutableMemoryPagesByStartAddress( std::uintptr_t uStartAddress, std::uintptr_t* uBaseAddress, std::size_t* pMemorySize )
 {

@@ -4,12 +4,6 @@
 #include "Tools/Logs.h"
 #include <memory>
 #include <vector>
-
-//#define DEBUG_COMMENTS
-
-
-//FileLog IATReferenceScan::directImportLog( L"Scylla_direct_imports.log" );
-
 #include <ranges>
 #include "WinApi/ApiTools.h"
 
@@ -162,11 +156,12 @@ void IATReferenceScan::analyzeInstruction( _DInst* pInstruction )
 	{
 		findDirectIatReferenceMov( pInstruction );
 
-#ifndef _WIN64
-		findDirectIatReferenceCallJmp( pInstruction );
-		findDirectIatReferenceLea( pInstruction );
-		findDirectIatReferencePush( pInstruction );
-#endif
+		if ( !ProcessAccessHelp::is64BitProcess )
+		{
+			findDirectIatReferenceCallJmp( pInstruction );
+			findDirectIatReferenceLea( pInstruction );
+			findDirectIatReferencePush( pInstruction );
+		}
 	}
 }
 
@@ -176,62 +171,63 @@ void IATReferenceScan::findNormalIatReference( _DInst* pInstruction )
 
 	IATReference currentRef { };
 
-	if ( META_GET_FC( pInstruction->meta ) == FC_CALL || META_GET_FC( pInstruction->meta ) == FC_UNC_BRANCH )
+	if ( META_GET_FC( pInstruction->meta ) != FC_CALL && META_GET_FC( pInstruction->meta ) != FC_UNC_BRANCH )
+		return;
+
+	if ( pInstruction->size < 5 )
+		return;
+
+	currentRef.type = ( META_GET_FC( pInstruction->meta ) == FC_CALL ) ? IAT_REFERENCE_PTR_CALL : IAT_REFERENCE_PTR_JMP;
+
+	currentRef.uAddressVA = pInstruction->addr;
+
+	currentRef.uInstructionSize = pInstruction->size;
+
+	if ( ProcessAccessHelp::is64BitProcess )
 	{
-		if ( pInstruction->size >= 5 )
+		if ( pInstruction->flags & FLAG_RIP_RELATIVE )
 		{
-			currentRef.type = ( META_GET_FC( pInstruction->meta ) == FC_CALL ) ? IAT_REFERENCE_PTR_CALL : IAT_REFERENCE_PTR_JMP;
+			distorm_format( &ProcessAccessHelp::decomposerCi, pInstruction, &inst );
 
-			currentRef.uAddressVA = pInstruction->addr;
+			LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S,
+				pInstruction->addr,
+				ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size,
+				INSTRUCTION_GET_RIP_TARGET( pInstruction ) );
 
-			currentRef.uInstructionSize = pInstruction->size;
-
-#ifdef _WIN64
-			if ( pInstruction->flags & FLAG_RIP_RELATIVE )
+			if ( INSTRUCTION_GET_RIP_TARGET( pInstruction ) >= IatAddressVA && INSTRUCTION_GET_RIP_TARGET( pInstruction ) < ( IatAddressVA + IatSize ) )
 			{
-				distorm_format( &ProcessAccessHelp::decomposerCi, pInstruction, &inst );
+				currentRef.uTargetPointer = INSTRUCTION_GET_RIP_TARGET( pInstruction );
 
-				LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S,
-					pInstruction->addr,
-					ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size,
-					INSTRUCTION_GET_RIP_TARGET( pInstruction ) );
+				getIatEntryAddress( &currentRef );
 
-				if ( INSTRUCTION_GET_RIP_TARGET( pInstruction ) >= IatAddressVA && INSTRUCTION_GET_RIP_TARGET( pInstruction ) < ( IatAddressVA + IatSize ) )
-				{
-					currentRef.uTargetPointer = INSTRUCTION_GET_RIP_TARGET( pInstruction );
+				//LOGS_DEBUG( "iat entry "PRINTF_DWORD_PTR_FULL_S,currentRef.uTargetAddressInIat);
 
-					getIatEntryAddress( &currentRef );
-
-					//LOGS_DEBUG( "iat entry "PRINTF_DWORD_PTR_FULL_S,currentRef.uTargetAddressInIat);
-
-					vIatReferenceList.push_back( currentRef );
-				}
+				vIatReferenceList.push_back( currentRef );
 			}
-#else
+		}
+	}
+	else
+	{
+		if ( pInstruction->ops[ 0 ].type == O_DISP )
+		{
+			//jmp dword ptr || call dword ptr
 
-			if ( pInstruction->ops[ 0 ].type == O_DISP )
+			distorm_format( &ProcessAccessHelp::decomposerCi, pInstruction, &inst );
+
+			LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S,
+				pInstruction->addr,
+				ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size, static_cast<std::uintptr_t>( pInstruction->disp ) );
+
+			if ( pInstruction->disp >= IatAddressVA && pInstruction->disp < ( IatAddressVA + IatSize ) )
 			{
-				//jmp dword ptr || call dword ptr
+				currentRef.uTargetPointer = static_cast<std::uintptr_t>( pInstruction->disp );
 
-				distorm_format( &ProcessAccessHelp::decomposerCi, pInstruction, &inst );
+				getIatEntryAddress( &currentRef );
 
-				LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " %S %S %d %d - target address: " PRINTF_DWORD_PTR_FULL_S,
-					pInstruction->addr,
-					ImageBase, inst.mnemonic.p, inst.operands.p, pInstruction->ops[ 0 ].type, pInstruction->size, static_cast<std::uintptr_t>( pInstruction->disp ) );
+				//LOGS_DEBUG( "iat entry "PRINTF_DWORD_PTR_FULL_S,currentRef.uTargetAddressInIat);
 
-				if ( pInstruction->disp >= IatAddressVA && pInstruction->disp < ( IatAddressVA + IatSize ) )
-				{
-					currentRef.uTargetPointer = static_cast<std::uintptr_t>( pInstruction->disp );
-
-					getIatEntryAddress( &currentRef );
-
-					//LOGS_DEBUG( "iat entry "PRINTF_DWORD_PTR_FULL_S,currentRef.uTargetAddressInIat);
-
-					vIatReferenceList.push_back( currentRef );
-				}
+				vIatReferenceList.push_back( currentRef );
 			}
-#endif
-
 		}
 	}
 }
@@ -261,12 +257,9 @@ void IATReferenceScan::patchReferenceInMemory( IATReference* pRef ) const {
 
 	auto uNewIatAddressPointer = pRef->uTargetPointer - IatAddressVA + NewIatAddressRVA;
 
+	
 	auto uPatchBytes = static_cast<std::uint32_t>(
-#ifdef _WIN64
-		uNewIatAddressPointer - pRef->uAddressVA - 6
-#else
-		uNewIatAddressPointer
-#endif
+			( ProcessAccessHelp::is64BitProcess )? (uNewIatAddressPointer - pRef->uAddressVA - 6) : uNewIatAddressPointer
 		);
 	ProcessAccessHelp::writeMemoryToProcess( pRef->uAddressVA + 2, sizeof( std::uint32_t ), &uPatchBytes );
 }
@@ -293,11 +286,7 @@ void IATReferenceScan::patchDirectImportInMemory( IATReference* pRef ) const {
 	ProcessAccessHelp::writeMemoryToProcess( pRef->uAddressVA, 2, pPatchPreBytes );
 
 	auto uPatchBytes = static_cast<std::uint32_t>(
-#ifdef _WIN64
-		pRef->uTargetPointer - pRef->uAddressVA - 6
-#else
-		pRef->uTargetPointer
-#endif
+		( ProcessAccessHelp::is64BitProcess ) ? ( pRef->uTargetPointer - pRef->uAddressVA - 6 ) : pRef->uTargetPointer
 		);
 	ProcessAccessHelp::writeMemoryToProcess( pRef->uAddressVA + 2, sizeof( std::uint32_t ), &uPatchBytes );
 }
@@ -383,24 +372,24 @@ void IATReferenceScan::findDirectIatReferenceCallJmp( _DInst* pInstruction )
 {
 	IATReference currentRef { };
 
-	if ( META_GET_FC( pInstruction->meta ) == FC_CALL || META_GET_FC( pInstruction->meta ) == FC_UNC_BRANCH )
+	if ( META_GET_FC( pInstruction->meta ) != FC_CALL && META_GET_FC( pInstruction->meta ) != FC_UNC_BRANCH )
+		return;
+
+	if ( ( pInstruction->size >= 5 ) && ( pInstruction->ops[ 0 ].type == O_PC ) ) //CALL/JMP 0x00000000
 	{
-		if ( ( pInstruction->size >= 5 ) && ( pInstruction->ops[ 0 ].type == O_PC ) ) //CALL/JMP 0x00000000
+		if ( META_GET_FC( pInstruction->meta ) == FC_CALL )
 		{
-			if ( META_GET_FC( pInstruction->meta ) == FC_CALL )
-			{
-				currentRef.type = IAT_REFERENCE_DIRECT_CALL;
-			}
-			else
-			{
-				currentRef.type = IAT_REFERENCE_DIRECT_JMP;
-			}
-
-			currentRef.uTargetAddressInIat = static_cast<std::uintptr_t>( INSTRUCTION_GET_TARGET( pInstruction ) );
-
-			checkMemoryRangeAndAddToList( &currentRef, pInstruction );
+			currentRef.type = IAT_REFERENCE_DIRECT_CALL;
 		}
-	}
+		else
+		{
+			currentRef.type = IAT_REFERENCE_DIRECT_JMP;
+		}
+
+		currentRef.uTargetAddressInIat = static_cast<std::uintptr_t>( INSTRUCTION_GET_TARGET( pInstruction ) );
+
+		checkMemoryRangeAndAddToList( &currentRef, pInstruction );
+	}	
 }
 
 void IATReferenceScan::findDirectIatReferenceMov( _DInst* pInstruction )
@@ -410,8 +399,9 @@ void IATReferenceScan::findDirectIatReferenceMov( _DInst* pInstruction )
 
 	if ( pInstruction->opcode == I_MOV )
 	{
-#ifdef _WIN64
-		if ( pInstruction->size >= 7 ) //MOV REGISTER, 0xFFFFFFFFFFFFFFFF
+#ifdef WIN64
+		if (( ProcessAccessHelp::is64BitProcess && pInstruction->size >= 7 ) //MOV REGISTER, 0xFFFFFFFFFFFFFFFF
+			|| ( !ProcessAccessHelp::is64BitProcess && pInstruction->size >= 5 ) )  //MOV REGISTER, 0xFFFFFFFF
 #else
 		if ( pInstruction->size >= 5 ) //MOV REGISTER, 0xFFFFFFFF
 #endif
@@ -486,48 +476,48 @@ void IATReferenceScan::patchDirectJumpTableEntry( std::uintptr_t uTargetIatPoint
 
 	for ( auto& currentRef : vIatDirectImportList ) {
 
-		if ( currentRef.uTargetPointer == uTargetIatPointer ) {
+		if ( currentRef.uTargetPointer != uTargetIatPointer )
+			continue;
 
-			auto uPatchOffset = static_cast<std::uint32_t>( pPeParser->convertRVAToOffsetRelative( currentRef.uAddressVA - ImageBase ) );
+		auto uPatchOffset = static_cast<std::uint32_t>( pPeParser->convertRVAToOffsetRelative( currentRef.uAddressVA - ImageBase ) );
 
-			auto nIndex = pPeParser->convertRVAToOffsetVectorIndex( currentRef.uAddressVA - ImageBase );
+		auto nIndex = pPeParser->convertRVAToOffsetVectorIndex( currentRef.uAddressVA - ImageBase );
 
-			auto* pMemory = pPeParser->getSectionMemoryByIndex( nIndex );
+		auto* pMemory = pPeParser->getSectionMemoryByIndex( nIndex );
 
-			auto uMemorySize = pPeParser->getSectionMemorySizeByIndex( nIndex );
+		auto uMemorySize = pPeParser->getSectionMemorySizeByIndex( nIndex );
 
-			auto uSectionRVA = pPeParser->getSectionAddressRVAByIndex( nIndex );
+		auto uSectionRVA = pPeParser->getSectionAddressRVAByIndex( nIndex );
 
-			if ( currentRef.type == IAT_REFERENCE_DIRECT_CALL || currentRef.type == IAT_REFERENCE_DIRECT_JMP ) {
-#ifndef _WIN64
-				if ( currentRef.uInstructionSize == 5 ) {
-					auto uPatchBytes = uDirectImportsJumpTableRVA - ( currentRef.uAddressVA - ImageBase ) - 5;
-					patchDirectImportInDump32( 1, 5, uPatchBytes, pMemory, uMemorySize, false, uPatchOffset, uSectionRVA );
+		if ( currentRef.type == IAT_REFERENCE_DIRECT_CALL || currentRef.type == IAT_REFERENCE_DIRECT_JMP ) {
+
+			if ( !ProcessAccessHelp::is64BitProcess && currentRef.uInstructionSize == 5 ) {
+				auto uPatchBytes = static_cast<std::uint32_t>( uDirectImportsJumpTableRVA - ( currentRef.uAddressVA - ImageBase ) - 5 );
+				patchDirectImportInDump32( 1, 5, uPatchBytes, pMemory, uMemorySize, false, uPatchOffset, uSectionRVA );
+			}	
 		}
-#endif
-	}
-			else if ( currentRef.type == IAT_REFERENCE_DIRECT_PUSH || currentRef.type == IAT_REFERENCE_DIRECT_MOV ) {
-#ifndef _WIN64
-				if ( currentRef.uInstructionSize == 5 ) { // for x86
-					auto uPatchBytes = uDirectImportsJumpTableRVA + uStdImagebase;
-					patchDirectImportInDump32( 1, 5, uPatchBytes, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
-}
-#else
-				if ( currentRef.uInstructionSize == 10 ) { // for x64
-					auto patchBytes64 = uDirectImportsJumpTableRVA + uStdImagebase;
-					patchDirectImportInDump64( 2, 10, patchBytes64, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
-				}
-#endif
+		else if ( currentRef.type == IAT_REFERENCE_DIRECT_PUSH || currentRef.type == IAT_REFERENCE_DIRECT_MOV ) {
+
+			if ( !ProcessAccessHelp::is64BitProcess && currentRef.uInstructionSize == 5 ) { // for x86
+				auto uPatchBytes = static_cast<std::uint32_t>( uDirectImportsJumpTableRVA + uStdImagebase );
+				patchDirectImportInDump32( 1, 5, uPatchBytes, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
+
+			}else
+			if ( ProcessAccessHelp::is64BitProcess && currentRef.uInstructionSize == 10 ) { // for x64
+				auto patchBytes64 = uDirectImportsJumpTableRVA + uStdImagebase;
+				patchDirectImportInDump64( 2, 10, patchBytes64, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
 			}
-			else if ( currentRef.type == IAT_REFERENCE_DIRECT_LEA ) {
-#ifndef _WIN64
-				if ( currentRef.uInstructionSize == 6 ) {
-					auto uPatchBytes = uDirectImportsJumpTableRVA + uStdImagebase;
-					patchDirectImportInDump32( 2, 6, uPatchBytes, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
-				}
-#endif
-			}
+
 		}
+		else if ( currentRef.type == IAT_REFERENCE_DIRECT_LEA ) {
+
+			if ( !ProcessAccessHelp::is64BitProcess && currentRef.uInstructionSize == 6 ) {
+				auto uPatchBytes = static_cast<std::uint32_t>( uDirectImportsJumpTableRVA + uStdImagebase );
+				patchDirectImportInDump32( 2, 6, uPatchBytes, pMemory, uMemorySize, true, uPatchOffset, uSectionRVA );
+			}
+
+		}
+		
 	}
 }
 
@@ -551,14 +541,21 @@ void IATReferenceScan::patchDirectJumpTable( std::uintptr_t uStdImagebase, std::
 		std::uintptr_t uNewIatAddressPointer = uAdjustedRefTargetPointer - ImageBase + uStdImagebase;
 
 		std::uint32_t uPatchBytes = 0;
-#ifdef _WIN64
-		uPatchBytes = static_cast<std::uint32_t>( uNewIatAddressPointer - ( uDirectImportsJumpTableRVA + uStdImagebase ) - 6 );
-#else
-		uPatchBytes = static_cast<std::uint32_t>( uNewIatAddressPointer );
-		std::uint32_t uRelocOffset = uDirectImportsJumpTableRVA + 2;
-		LOGS_IMPORT( "Relocation direct imports fix: Base RVA %08X Type HIGHLOW Offset %04X RelocTableEntry %04X",
-			uRelocOffset & 0xFFFFF000, uRelocOffset & 0x00000FFF, ( IMAGE_REL_BASED_HIGHLOW << 12 ) + ( uRelocOffset & 0x00000FFF ) );
-#endif
+
+		if ( ProcessAccessHelp::is64BitProcess )
+		{
+			uPatchBytes = static_cast<std::uint32_t>( uNewIatAddressPointer - ( uDirectImportsJumpTableRVA + uStdImagebase ) - 6 );
+		}
+		else
+		{
+			uPatchBytes = static_cast<std::uint32_t>( uNewIatAddressPointer );
+
+			std::uint32_t uRelocOffset = uDirectImportsJumpTableRVA + 2;
+
+			LOGS_IMPORT( "Relocation direct imports fix: Base RVA %08X Type HIGHLOW Offset %04X RelocTableEntry %04X",
+				uRelocOffset & 0xFFFFF000, uRelocOffset & 0x00000FFF, ( IMAGE_REL_BASED_HIGHLOW << 12 ) + ( uRelocOffset & 0x00000FFF ) );
+		}
+
 		pJmpTableMemory[ 0 ] = 0xFF;
 		pJmpTableMemory[ 1 ] = 0x25;
 

@@ -89,6 +89,8 @@ public:
 	static std::uintptr_t uTargetSizeOfImage;
 	static std::uintptr_t uMaxValidAddress;
 
+	static bool is64BitProcess;
+
 	//static ModuleInfo * selectedModule;
 
 	static std::vector<ModuleInfo> vModuleList; //target process pModule list
@@ -107,11 +109,8 @@ public:
 	//distorm :: Decoded instruction information.
 	static _DecodedInst decodedInstructions[ MAX_INSTRUCTIONS ];
 	static std::uint32_t decodedInstructionsCount;
-#ifdef _WIN64
-	static const _DecodeType dt = Decode64Bits;
-#else
-	static const _DecodeType dt = Decode32Bits;
-#endif
+
+	static _DecodeType dt;
 
 	/*
 	 * Open a new process handle
@@ -215,8 +214,6 @@ public:
 	static std::uint32_t getEntryPointFromFile( const wchar_t* pFilePath );
 
 	static bool createBackupFile( const wchar_t* pFilePath );
-
-	static std::uint32_t getModuleHandlesFromProcess( const HANDLE hProcess, HMODULE** hMods );
 
 	static void setCurrentProcessAsTarget( );
 

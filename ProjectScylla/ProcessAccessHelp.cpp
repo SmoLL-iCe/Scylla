@@ -7,6 +7,7 @@
 #include "Tools/Logs.h"
 #include "WinApi/ApiTools.h"
 #include "Architecture.h"
+#include "ProcessLister.h"
 
 HANDLE ProcessAccessHelp::hProcess = 0;
 
@@ -14,6 +15,7 @@ std::uintptr_t ProcessAccessHelp::uTargetImageBase = 0;
 std::uintptr_t ProcessAccessHelp::uTargetSizeOfImage = 0;
 std::uintptr_t ProcessAccessHelp::uMaxValidAddress = 0;
 
+bool ProcessAccessHelp::is64BitProcess = false;
 std::vector<ModuleInfo> ProcessAccessHelp::vModuleList; //target process pModule list
 std::vector<ModuleInfo> ProcessAccessHelp::vOwnModuleList; //own pModule list
 
@@ -24,6 +26,8 @@ _CodeInfo ProcessAccessHelp::decomposerCi = { 0 };
 
 _DecodedInst  ProcessAccessHelp::decodedInstructions[ MAX_INSTRUCTIONS ];
 std::uint32_t  ProcessAccessHelp::decodedInstructionsCount = 0;
+
+_DecodeType ProcessAccessHelp::dt = Decode64Bits;
 
 std::uint8_t ProcessAccessHelp::fileHeaderFromDisk[ PE_HEADER_BYTES_COUNT ];
 
@@ -57,6 +61,10 @@ bool ProcessAccessHelp::openProcessHandle( std::uint32_t uPID )
 
 		hProcess = nullptr;
 	}
+
+	is64BitProcess = ProcessLister::checkIsProcess64( hProcess ) == PROCESS_64;
+
+	dt = is64BitProcess ? Decode64Bits : Decode32Bits;
 
 	return ( hProcess != nullptr );
 }
@@ -107,7 +115,9 @@ bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, st
 			bytesToRead = szSize - readBytes;
 		}
 
-		if ( memBasic.State == MEM_COMMIT && memBasic.Protect != PAGE_NOACCESS ) {
+		if ( memBasic.State == MEM_COMMIT 
+			//&& memBasic.Protect != PAGE_NOACCESS 
+			) {
 			if ( !readMemoryFromProcess( addressPart, bytesToRead, reinterpret_cast<LPVOID>( reinterpret_cast<std::uintptr_t>( pDataBuffer ) + readBytes ) ) ) {
 				break;
 			}
@@ -491,52 +501,67 @@ std::uint32_t ProcessAccessHelp::getProcessByName( const wchar_t* processName )
 
 bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleInfo>& vModuleList )
 {
-	ModuleInfo Module {};
-	wchar_t pFileName[ MAX_PATH * 2 ] = { 0 };
-	DWORD dwCbNeeded = 0;
 	DeviceNameResolver pDeviceNameResolver;
 
+	vModuleList.clear( );
 	vModuleList.reserve( 20 );
 
-	EnumProcessModules( hProcess, nullptr, 0, &dwCbNeeded );
+	ProcessType archType = ProcessLister::checkIsProcess64( hProcess );
 
-	auto hMods = std::unique_ptr<HMODULE[ ]>( new HMODULE[ dwCbNeeded / sizeof( HMODULE ) ] );
+	DWORD dwProcessId = GetProcessId( hProcess );
+	if ( dwProcessId == 0 ) {
+		return false;
+	}
 
-	if ( EnumProcessModules( hProcess, hMods.get( ), dwCbNeeded, &dwCbNeeded ) )
-	{
-		for ( std::uint32_t i = 1; i < ( dwCbNeeded / sizeof( HMODULE ) ); i++ ) //skip first pModule!
-		{
-			Module.uModBase = reinterpret_cast<std::uintptr_t>( hMods[ i ] );
-			Module.uModBaseSize = static_cast<std::uint32_t>( getSizeOfImageProcess( hProcess, Module.uModBase ) );
+	HANDLE hSnapshot = CreateToolhelp32Snapshot( TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, dwProcessId );
+
+	if ( hSnapshot == INVALID_HANDLE_VALUE ) {
+		return false;
+	}
+
+	MODULEENTRY32W meModuleEntry{ };
+	meModuleEntry.dwSize = sizeof( MODULEENTRY32W );
+
+	if ( Module32FirstW( hSnapshot, &meModuleEntry ) ) {
+		do {
+			ModuleInfo Module{};
+
+			Module.uModBase = reinterpret_cast<std::uintptr_t>( meModuleEntry.modBaseAddr );
+
+			if ( archType == PROCESS_32 && Module.uModBase > 0xFFFFFFFF )
+				continue;
+
+			Module.uModBaseSize = meModuleEntry.modBaseSize;
 			Module.isAlreadyParsed = false;
 			Module.parsing = false;
 
+			wchar_t pFileName[ MAX_PATH * 2 ] = { 0 };
+
 			pFileName[ 0 ] = 0;
-			Module.pModulePath[ 0 ] = 0;
 
 			if ( GetMappedFileNameW( hProcess, reinterpret_cast<LPVOID>( Module.uModBase ), pFileName, _countof( pFileName ) ) > 0 )
 			{
 				if ( !pDeviceNameResolver.resolveDeviceLongNameToShort( pFileName, Module.pModulePath ) )
 				{
-					if ( !GetModuleFileNameExW( hProcess, hMods[ i ], Module.pModulePath, _countof( Module.pModulePath ) ) )
+					if ( !GetModuleFileNameExW( hProcess, reinterpret_cast<HMODULE>( meModuleEntry.modBaseAddr ), Module.pModulePath, _countof( Module.pModulePath ) ) )
 					{
 						wcscpy_s( Module.pModulePath, pFileName );
 					}
 				}
 			}
-			else
-			{
-				GetModuleFileNameExW( hProcess, hMods[ i ], Module.pModulePath, _countof( Module.pModulePath ) );
-			}
 
 			vModuleList.push_back( Module );
-		}
 
-		return true;
+		} while ( Module32NextW( hSnapshot, &meModuleEntry ) );
 	}
 
-	return false;
+	//Wow64EnableWow64FsRedirection( TRUE );
+	CloseHandle( hSnapshot );
+
+	return true;
 }
+
+
 
 bool ProcessAccessHelp::getMemoryRegionFromAddress( std::uintptr_t uAddress, std::uintptr_t* pMemoryRegionBase, std::size_t* pMemoryRegionSize )
 {
@@ -629,41 +654,6 @@ bool ProcessAccessHelp::createBackupFile( const wchar_t* pFilePath )
 	}
 
 	return bResult != 0;
-}
-
-std::uint32_t ProcessAccessHelp::getModuleHandlesFromProcess( const HANDLE hProcess, HMODULE** hMods )
-{
-	std::uint32_t count = 30;
-	DWORD cbNeeded = 0;
-	bool notEnough = true;
-
-	std::vector<HMODULE> modules( count );
-
-	do
-	{
-		if ( !EnumProcessModules( hProcess, &modules[ 0 ], static_cast<std::uint32_t>( modules.size( ) * sizeof( HMODULE ) ), &cbNeeded ) )
-		{
-			LOGS_DEBUG( "getModuleHandlesFromProcess :: EnumProcessModules failed count %lu", modules.size( ) );
-
-			return 0;
-		}
-
-		if ( modules.size( ) * sizeof( HMODULE ) < cbNeeded )
-		{
-			modules.resize( cbNeeded / sizeof( HMODULE ) );
-		}
-		else
-		{
-			notEnough = false;
-		}
-	} while ( notEnough );
-
-	// Allocate and copy to output parameter
-	*hMods = new HMODULE[ modules.size( ) ];
-
-	std::copy( modules.begin( ), modules.end( ), *hMods );
-
-	return cbNeeded / sizeof( HMODULE );
 }
 
 void ProcessAccessHelp::setCurrentProcessAsTarget( )

@@ -3,6 +3,10 @@
 #include "ProcessAccessHelp.h"
 #include <algorithm>
 #include <imagehlp.h>
+#include "Tools/Logs.h"
+#include "Architecture.h"
+
+#undef max
 
 #pragma comment(lib, "Imagehlp.lib")
 
@@ -17,11 +21,36 @@ PeParser::PeParser( )
 	initClass( );
 }
 
-PeParser::PeParser( const wchar_t* file, bool bReadSectionHeaders )
+bool PeParser::getImageData( )
+{
+	const std::uintptr_t uSize = std::max( getImageSize( ), uFileSize );
+
+	vImageData.clear( );
+
+	vImageData.reserve( uSize );
+	vImageData.resize( uSize );
+
+	const std::uintptr_t uTotalPages = ( uSize / 0x1000 ) + 1;
+
+	for ( std::uintptr_t i = 0; i < uTotalPages; i++ )
+	{
+		const std::uint32_t uReadSize = ( i == ( uTotalPages - 1 ) ) ? ( uSize % 0x1000 ) : 0x1000;
+
+		if ( !ProcessAccessHelp::readMemoryFromProcess( uModuleBaseAddress + ( i * 0x1000 ), uReadSize, vImageData.data( ) + ( i * 0x1000 ) ) )
+		{
+			LOGS_DEBUG( "Failed to read memory from process at address 0x" PRINTF_DWORD_PTR_FULL_S "\n", uModuleBaseAddress + ( i * 0x1000 ) );
+			continue;
+		}
+	}
+
+	return true;
+}
+
+PeParser::PeParser( const wchar_t* pFile, bool bReadSectionHeaders )
 {
 	initClass( );
 
-	pFileName = file;
+	pFileName = pFile;
 
 	if ( !pFileName )
 		return;
@@ -67,13 +96,13 @@ PeParser::PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders )
 
 PeParser::~PeParser( )
 {
-	for ( std::size_t i = 0; i < vListPeSection.size( ); i++ )
-	{
-		if ( vListPeSection[ i ].pData )
-		{
-			delete[ ] vListPeSection[ i ].pData;
-		}
-	}
+	//for ( std::size_t i = 0; i < vListPeSection.size( ); i++ )
+	//{
+	//	if ( vListPeSection[ i ].pData )
+	//	{
+	//		delete[ ] vListPeSection[ i ].pData;
+	//	}
+	//}
 
 	vListPeSection.clear( );
 }
@@ -81,7 +110,7 @@ PeParser::~PeParser( )
 void PeParser::initClass( )
 {
 	pHeaderMemory = nullptr;
-
+	vImageData.clear( );
 	pDosHeader = nullptr;
 	pDosStub = nullptr;
 	uDosStubSize = 0;
@@ -158,7 +187,7 @@ bool PeParser::hasRelocationDirectory( )
 	return hasDirectory( IMAGE_DIRECTORY_ENTRY_BASERELOC );
 }
 
-std::uint32_t PeParser::getEntryPoint( )
+std::uint32_t PeParser::getEntryPoint( ) const
 {
 	return isPE32( ) ? pNTHeader32->OptionalHeader.AddressOfEntryPoint :
 		isPE64( ) ? pNTHeader64->OptionalHeader.AddressOfEntryPoint : 0;
@@ -168,7 +197,7 @@ bool PeParser::readPeHeaderFromProcess( bool bReadSectionHeaders )
 {
 	std::uint32_t uCorrectSize = 0;
 
-	std::uint32_t uReadSize = getInitialHeaderReadSize( bReadSectionHeaders );
+	std::uint32_t uReadSize = getInitialHeaderReadSize( );
 
 	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ uReadSize ] );
 
@@ -202,7 +231,7 @@ bool PeParser::readPeHeaderFromFile( bool bReadSectionHeaders )
 	std::uint32_t uCorrectSize = 0;
 	DWORD dwNumberOfBytesRead = 0;
 
-	std::uint32_t uReadSize = getInitialHeaderReadSize( bReadSectionHeaders );
+	std::uint32_t uReadSize = getInitialHeaderReadSize( );
 
 	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ uReadSize ] );
 
@@ -256,6 +285,8 @@ bool PeParser::readPeHeaderFromFile( bool bReadSectionHeaders )
 
 bool PeParser::readPeSectionsFromProcess( )
 {
+	getImageData( );
+
 	bool bResult = true;
 
 	vListPeSection.reserve( getNumberOfSections( ) );
@@ -403,7 +434,22 @@ std::uint32_t PeParser::calcCorrectPeHeaderSize( bool bReadSectionHeaders ) cons
 	return uCorrectSize;
 }
 
-std::uint32_t PeParser::getInitialHeaderReadSize( bool bReadSectionHeaders )
+std::uint32_t PeParser::getImageSize( ) const {
+
+	if ( isPE32( ) )
+	{
+		return pNTHeader32->OptionalHeader.SizeOfImage;
+	}
+	else if ( isPE64( ) )
+	{
+		return static_cast<std::uint32_t>( pNTHeader64->OptionalHeader.SizeOfImage );
+	}
+
+	return 0;
+
+}
+
+std::uint32_t PeParser::getInitialHeaderReadSize( )
 {
 	std::uint32_t uReadSize = sizeof( IMAGE_DOS_HEADER ) + 0x300 + sizeof( IMAGE_NT_HEADERS64 );
 
@@ -486,8 +532,60 @@ bool PeParser::readSectionFromFile( const std::uint32_t uReadOffset, PeFileSecti
 	return readSectionFrom( uReadOffset, peFileSection, false ); //file
 }
 
-bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess )
+bool PeParser::readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection )
 {
+	std::uintptr_t uOffset = uReadOffset - uModuleBaseAddress;
+
+	if ( uOffset > vImageData.size( ) )
+		return false;
+
+	peFileSection.pData = vImageData.data( ) + uOffset;
+
+	return true;
+
+	//peFileSection.pData = new std::uint8_t[ peFileSection.uDataSize ];
+
+	//return ProcessAccessHelp::readMemoryPartlyFromProcess( uReadOffset, peFileSection.uDataSize, peFileSection.pData );
+}
+
+bool PeParser::readMemoryData( const std::uintptr_t uReadOffset, std::size_t szSize, LPVOID pDataBuffer ) {
+
+	std::uintptr_t uOffset = uReadOffset - uModuleBaseAddress;
+
+	if ( uOffset > vImageData.size( ) || ( uOffset + szSize ) > vImageData.size( ) )
+	{
+		return false;
+	}
+
+	std::memcpy( pDataBuffer, vImageData.data( ) + uOffset, szSize );
+
+	return true;
+
+
+	//auto bResult  = ProcessAccessHelp::readMemoryPartlyFromProcess( uReadOffset, szSize, pDataBuffer );
+
+	//printf( "Reading uReadOffset 0x%llX, szSize 0x%llX, 0x%llX\n", uReadOffset - uModuleBaseAddress, szSize, vImageData.size( ) );
+
+	//for ( size_t i = 0; i < 10; i++ )
+	//{
+	//	printf( "0x%02X ", vImageData[ i ] );
+
+	//}
+	//printf( "\n" );
+	//for ( size_t i = 0; i < 10; i++ )
+	//{
+	//	printf( "0x%02X ", ( ( unsigned char* )pDataBuffer )[ i ] );
+	//
+	//}
+	// printf( "\n" );
+	//return bResult;
+}
+
+bool PeParser::readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess )
+{
+	//if ( isProcess )
+	//uReadOffset = peFileSection.sectionHeader.VirtualAddress;
+
 	const std::uint32_t uMaxReadSize = 0x100;
 	std::uint8_t pData[ uMaxReadSize ];
 	bool bResult = true;
@@ -510,7 +608,7 @@ bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection&
 	{
 		std::memset( pData, 0, uCurrentReadSize );
 
-		bResult = isProcess ? ProcessAccessHelp::readMemoryPartlyFromProcess( uCurrentOffset, uCurrentReadSize, pData ) :
+		bResult = isProcess ? readMemoryData( uCurrentOffset, uCurrentReadSize, pData ) :
 			ProcessAccessHelp::readMemoryFromFile( hFile, static_cast<LONG>( uCurrentOffset ), uCurrentReadSize, pData );
 
 		if ( !bResult )
@@ -519,6 +617,7 @@ bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection&
 		}
 
 		std::uint32_t uValuesFound = isMemoryNotNull( pData, uCurrentReadSize );
+
 		if ( uValuesFound )
 		{
 			uCurrentOffset += uValuesFound;
@@ -687,13 +786,6 @@ bool PeParser::readPeSectionFromFile( std::uint32_t uReadOffset, PeFileSection& 
 	SetFilePointer( hFile, uReadOffset, 0, FILE_BEGIN );
 
 	return ( ReadFile( hFile, peFileSection.pData, peFileSection.uDataSize, &dwBytesRead, 0 ) != FALSE );
-}
-
-bool PeParser::readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection )
-{
-	peFileSection.pData = new std::uint8_t[ peFileSection.uDataSize ];
-
-	return ProcessAccessHelp::readMemoryPartlyFromProcess( uReadOffset, peFileSection.uDataSize, peFileSection.pData );
 }
 
 std::uint32_t PeParser::alignValue( std::uint32_t uBadValue, std::uint32_t uAlignTo )
