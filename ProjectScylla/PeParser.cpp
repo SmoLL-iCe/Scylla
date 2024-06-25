@@ -139,7 +139,7 @@ bool PeParser::isPE32( ) const
 
 bool PeParser::isTargetFileSamePeFormat( ) const
 {
-#ifdef _WIN64
+#ifdef WIN64
 	return isPE64( );
 #else
 	return isPE32( );
@@ -561,71 +561,84 @@ bool PeParser::readMemoryData( const std::uintptr_t uReadOffset, std::size_t szS
 
 	return true;
 
-
 	//auto bResult  = ProcessAccessHelp::readMemoryPartlyFromProcess( uReadOffset, szSize, pDataBuffer );
 
-	//printf( "Reading uReadOffset 0x%llX, szSize 0x%llX, 0x%llX\n", uReadOffset - uModuleBaseAddress, szSize, vImageData.size( ) );
-
-	//for ( size_t i = 0; i < 10; i++ )
-	//{
-	//	printf( "0x%02X ", vImageData[ i ] );
-
-	//}
-	//printf( "\n" );
-	//for ( size_t i = 0; i < 10; i++ )
-	//{
-	//	printf( "0x%02X ", ( ( unsigned char* )pDataBuffer )[ i ] );
-	//
-	//}
-	// printf( "\n" );
 	//return bResult;
 }
 
-bool PeParser::readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess )
+bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess )
 {
-	//if ( isProcess )
-	//uReadOffset = peFileSection.sectionHeader.VirtualAddress;
-
 	const std::uint32_t uMaxReadSize = 0x100;
+
 	std::uint8_t pData[ uMaxReadSize ];
+
 	bool bResult = true;
 
-	if ( !uReadOffset || !( peFileSection.uDataSize = peFileSection.uNormalSize ) )
+	peFileSection.pData = 0;
+	peFileSection.uDataSize = 0;
+
+	std::uint32_t uReadSize = peFileSection.uNormalSize;
+
+	if ( !uReadOffset || !uReadSize )
 	{
-		return true; // Section without pData is valid
+		return true; //section without data is valid
 	}
 
-	if ( peFileSection.uDataSize <= uMaxReadSize )
+	if ( uReadSize <= uMaxReadSize )
 	{
-		return isProcess ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
+		peFileSection.uDataSize = uReadSize;
+		peFileSection.uNormalSize = uReadSize;
+
+		return ( isProcess ) ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
 			readPeSectionFromFile( static_cast<std::uint32_t>( uReadOffset ), peFileSection );
 	}
 
-	std::uint32_t uCurrentReadSize = peFileSection.uDataSize % uMaxReadSize ? peFileSection.uDataSize % uMaxReadSize : uMaxReadSize;
-	std::uintptr_t uCurrentOffset = uReadOffset + peFileSection.uDataSize - uCurrentReadSize;
+	std::uint32_t uCurrentReadSize = uReadSize % uMaxReadSize; //alignment %
 
-	while ( uCurrentOffset >= uReadOffset ) // Start from the end
+	if ( !uCurrentReadSize )
 	{
-		std::memset( pData, 0, uCurrentReadSize );
+		uCurrentReadSize = uMaxReadSize;
+	}
 
-		bResult = isProcess ? readMemoryData( uCurrentOffset, uCurrentReadSize, pData ) :
+	std::uintptr_t uCurrentOffset = uReadOffset + uReadSize - uCurrentReadSize;
+
+
+	while ( uCurrentOffset >= uReadOffset ) //start from the end
+	{
+		ZeroMemory( pData, uCurrentReadSize );
+
+		bResult = ( isProcess ) ? 
+			readMemoryData( uCurrentOffset, uCurrentReadSize, pData ):
 			ProcessAccessHelp::readMemoryFromFile( hFile, static_cast<LONG>( uCurrentOffset ), uCurrentReadSize, pData );
-
+		
 		if ( !bResult )
 		{
 			break;
 		}
 
-		std::uint32_t uValuesFound = isMemoryNotNull( pData, uCurrentReadSize );
+		std::uint32_t valuesFound = isMemoryNotNull( pData, uCurrentReadSize );
 
-		if ( uValuesFound )
+		if ( valuesFound )
 		{
-			uCurrentOffset += uValuesFound;
+			//found some real code
+
+			uCurrentOffset += valuesFound;
+
 			if ( uReadOffset < uCurrentOffset )
 			{
-				peFileSection.uDataSize = static_cast<std::uint32_t>( uCurrentOffset - uReadOffset ) + sizeof( std::uint32_t );
-				peFileSection.uDataSize = min( peFileSection.uDataSize, peFileSection.uNormalSize );
+				//real size
+				peFileSection.uDataSize = static_cast<std::uint32_t>( uCurrentOffset - uReadOffset );
+
+				//some safety space because of something like this at the end of a section:
+				//FF25 C0604000 JMP std::uint32_t PTR DS:[<&KERNEL32.RtlUnwind>]
+				peFileSection.uDataSize += sizeof( std::uint32_t );
+
+				if ( peFileSection.uNormalSize < peFileSection.uDataSize )
+				{
+					peFileSection.uDataSize = peFileSection.uNormalSize;
+				}
 			}
+
 			break;
 		}
 
@@ -633,15 +646,15 @@ bool PeParser::readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFil
 		uCurrentOffset -= uCurrentReadSize;
 	}
 
+
 	if ( peFileSection.uDataSize )
 	{
-		bResult = isProcess ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
-			readPeSectionFromFile( static_cast<std::uint32_t>( uReadOffset ), peFileSection );
+		bResult = ( isProcess ) ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
+			readPeSectionFromFile( static_cast<std::uint32_t>( uReadOffset ), peFileSection );		
 	}
 
 	return bResult;
 }
-
 
 std::uint32_t PeParser::isMemoryNotNull( std::uint8_t* pData, int uDataSize )
 {
@@ -1241,9 +1254,8 @@ std::uint32_t PeParser::getSectionAddressRVAByIndex( int index )
 
 PIMAGE_NT_HEADERS PeParser::getCurrentNtHeader( ) const
 {
-#ifdef _WIN64
-	return pNTHeader64;
-#else
-	return pNTHeader32;
+#ifdef WIN64
+	return ( ProcessAccessHelp::is64BitProcess ) ? reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader64 ) : reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader32 );
 #endif
+	return reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader32 );
 }

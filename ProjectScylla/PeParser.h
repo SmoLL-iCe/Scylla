@@ -161,4 +161,3 @@ protected:
 	bool getFileOverlay( );
 
 };
-
