@@ -24,6 +24,10 @@ ImVec4 hex2float_color( uint32_t hex_color, const float a = 1.f )
     return { r, g, b, a };
 }
 
+extern "C" __declspec( dllexport ) int MyFunc( long parm1 ) {
+	return 0;
+}
+
 static 
 void FrameControls( glWindow* instance )
 {
@@ -165,7 +169,7 @@ void FrameControls( glWindow* instance )
                     {
                         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
                         //scyllaCtx.iatAutosearchActionHandler( );
-                        //scyllaCtx.getImportsActionHandler( );
+                        scyllaCtx.getImportsActionHandler( );
 
                         scyllaCtx.dumpActionHandler( );
                     } ).detach( );
@@ -276,12 +280,12 @@ void FrameControls( glWindow* instance )
 
     if ( bOnce )
     {
-        //scyllaCtx.setProcessById( 53496 );
 
         //  auto future = std::async( std::launch::async, &ScyllaContext::setProcessById, &scyllaCtx, GetCurrentProcessId( ) );
         std::thread( [&]( )
             {
                 scyllaCtx.setProcessById( GetCurrentProcessId( ) );
+                //scyllaCtx.setProcessById( ProcessAccessHelp::getProcessByName( L"project1.exe" ) );
                 scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
             } ).detach( );

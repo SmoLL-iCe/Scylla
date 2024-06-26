@@ -38,7 +38,7 @@ private:
 
 	void addApi( const char* pFuncName, std::uint16_t uHint, std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo );
 	void addApiWithoutName( std::uint16_t uOrdinal, std::uintptr_t VA, std::uintptr_t RVA, bool isForwarded, ModuleInfo* pModuleInfo );
-	inline bool isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader );
+	static bool isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader );
 	void handleForwardedApi( std::uintptr_t uVaStringPointer, const char* pFuncNameParent, std::uintptr_t uRvaParent, std::uint16_t uOrdinalParent, ModuleInfo* pModuleParent );
 	void parseModule( ModuleInfo* pModule );
 	void parseModuleWithProcess( ModuleInfo* pModule );

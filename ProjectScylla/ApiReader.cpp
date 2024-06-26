@@ -65,7 +65,27 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 
 void ApiReader::parseModuleWithMapping( ModuleInfo* pModuleInfo )
 {
-	LPVOID pFileMapping = createFileMappingViewRead( pModuleInfo->pModulePath );
+	//std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
+
+	//if ( !peParser->initializeWithMapping( pModuleInfo->pModulePath ) )
+	//{
+	//	LOGS( "parseModuleWithMapping :: Error initializing with mapping %ls", pModuleInfo->pModulePath );
+	//	return;
+	//}
+
+	//if ( peParser->isValidExportTable( ) )
+	//{
+	//	parseExportTable( pModuleInfo, peParser->getCurrentNtHeader( ),
+	//		reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
+	//			reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) + peParser->getCurrentNtHeader( )->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
+	//		reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) );
+	//}
+
+
+
+
+	size_t szFileSize = 0;
+	LPVOID pFileMapping = createFileMappingViewRead( pModuleInfo->pModulePath, &szFileSize );
 
 	if ( pFileMapping == nullptr )
 		return;
@@ -84,7 +104,7 @@ void ApiReader::parseModuleWithMapping( ModuleInfo* pModuleInfo )
 	UnmapViewOfFile( pFileMapping );
 }
 
-inline bool ApiReader::isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader )
+bool ApiReader::isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader )
 {
 	auto DirExport = pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ];
 

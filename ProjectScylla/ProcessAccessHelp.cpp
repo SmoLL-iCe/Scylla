@@ -199,7 +199,7 @@ bool ProcessAccessHelp::decomposeMemory( std::uint8_t* pDataBuffer, std::size_t 
 {
 	ZeroMemory( &decomposerCi, sizeof( _CodeInfo ) );
 	decomposerCi.code = pDataBuffer;
-	decomposerCi.codeLen = (int)bufferSize;
+	decomposerCi.codeLen = static_cast<int>(bufferSize);
 	decomposerCi.dt = dt;
 	decomposerCi.codeOffset = uStartAddress;
 
@@ -227,7 +227,7 @@ bool ProcessAccessHelp::disassembleMemory( std::uint8_t* pDataBuffer, std::size_
 
 	_OffsetType offset = uStartOffset;
 
-	res = distorm_decode( offset, pDataBuffer, (int)bufferSize, dt, decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount );
+	res = distorm_decode( offset, pDataBuffer, static_cast<int>( bufferSize ), dt, decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount );
 
 	if ( res == DECRES_INPUTERR )
 	{
@@ -412,17 +412,17 @@ bool ProcessAccessHelp::readHeaderFromFile( std::uint8_t* pBuffer, std::uint32_t
 	return returnValue;
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewRead( const wchar_t* pFilePath )
+LPVOID ProcessAccessHelp::createFileMappingViewRead( const wchar_t* pFilePath, size_t* pSzFileSize )
 {
-	return createFileMappingView( pFilePath, GENERIC_READ, PAGE_READONLY | SEC_IMAGE, FILE_MAP_READ );
+	return createFileMappingView( pFilePath, GENERIC_READ, PAGE_READONLY | SEC_IMAGE, FILE_MAP_READ, pSzFileSize );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewFull( const wchar_t* pFilePath )
+LPVOID ProcessAccessHelp::createFileMappingViewFull( const wchar_t* pFilePath, size_t* pSzFileSize )
 {
-	return createFileMappingView( pFilePath, GENERIC_ALL, PAGE_EXECUTE_READWRITE, FILE_MAP_ALL_ACCESS );
+	return createFileMappingView( pFilePath, GENERIC_ALL, PAGE_EXECUTE_READWRITE, FILE_MAP_ALL_ACCESS, pSzFileSize );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap )
+LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap, size_t* pSzFileSize )
 {
 	HANDLE hFile = CreateFile( pFilePath, uAccessFile, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
 
@@ -433,7 +433,13 @@ LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::
 		return nullptr;
 	}
 
-	HANDLE hMappedFile = CreateFileMapping( hFile, nullptr, uflProtect, 0, 0, nullptr );
+	LARGE_INTEGER liFileSize{};
+
+	GetFileSizeEx( hFile, &liFileSize );
+
+	*pSzFileSize = liFileSize.QuadPart;
+
+	HANDLE hMappedFile = CreateFileMappingW( hFile, nullptr, uflProtect, 0, 0, nullptr );
 
 	CloseHandle( hFile );
 
@@ -453,9 +459,9 @@ LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::
 		return nullptr;
 	}
 
-	LPVOID addrMappedDll = MapViewOfFile( hMappedFile, uAccessMap, 0, 0, 0 );
+	LPVOID pMappedDll = MapViewOfFile( hMappedFile, uAccessMap, 0, 0, 0 );
 
-	if ( addrMappedDll == nullptr )
+	if ( pMappedDll == nullptr )
 	{
 		LOGS_DEBUG( "createFileMappingView :: addrMappedDll == nullptr" );
 
@@ -466,7 +472,7 @@ LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::
 
 	CloseHandle( hMappedFile );
 
-	return addrMappedDll;
+	return pMappedDll;
 }
 
 std::uint32_t ProcessAccessHelp::getProcessByName( const wchar_t* processName )

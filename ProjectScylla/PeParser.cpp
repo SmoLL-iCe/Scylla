@@ -5,6 +5,7 @@
 #include <imagehlp.h>
 #include "Tools/Logs.h"
 #include "Architecture.h"
+#include "WinApi/ApiTools.h"
 
 #undef max
 
@@ -15,6 +16,18 @@
      FIELD_OFFSET( IMAGE_NT_HEADERS32, OptionalHeader ) +                 \
      ((ntheader))->FileHeader.SizeOfOptionalHeader   \
     ))
+
+template<typename T>
+bool IsValidPtr( T p )
+{
+	DWORD Readable = ( PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY );
+	DWORD Writable = ( PAGE_EXECUTE_READWRITE | PAGE_READWRITE );
+	DWORD Forbidden = ( PAGE_GUARD | PAGE_NOCACHE | PAGE_NOACCESS );
+
+	MEMORY_BASIC_INFORMATION mbi = { };
+	mbi.Protect = 0;
+	return ( VirtualQuery( (void*)p, &mbi, sizeof mbi ) && ( mbi.Protect & Forbidden ) == 0 && ( mbi.Protect & Readable ) != 0 );
+}
 
 PeParser::PeParser( )
 {
@@ -43,56 +56,208 @@ bool PeParser::getImageData( )
 		}
 	}
 
+	pImageData = vImageData.data( );
+	szImageDataSize = vImageData.size( );
+
 	return true;
 }
 
-PeParser::PeParser( const wchar_t* pFile, bool bReadSectionHeaders )
-{
+bool PeParser::initializeFromFile( const wchar_t* pFile, bool bReadSectionHeaders ) {
+	
 	initClass( );
 
 	pFileName = pFile;
 
 	if ( !pFileName )
-		return;
+		return false;
 
 	readPeHeaderFromFile( bReadSectionHeaders );
 
 	if ( !bReadSectionHeaders )
-		return;
+		return true;
 
 	if ( !isValidPeFile( ) )
 	{
-		return;
+		return false;
 	}
 
-	getSectionHeaders( );
+	return getSectionHeaders( );
 }
 
-PeParser::PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders )
-{
+bool PeParser::initializeFromProcess( const std::uintptr_t uModuleBase, bool bReadSectionHeaders ) {
+	
 	initClass( );
-
-	uModuleBaseAddress = uModuleBase;
 
 	if ( !uModuleBaseAddress )
 	{
-		return;
+		return false;
 	}
+
+	uModuleBaseAddress = uModuleBase;
 
 	readPeHeaderFromProcess( bReadSectionHeaders );
 
 	if ( !bReadSectionHeaders )
 	{
-		return;
+		return true;
 	}
 
 	if ( !isValidPeFile( ) )
 	{
-		return;
+		return false;
+	}
+
+	return getSectionHeaders( );
+}
+
+bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData ) {
+
+	PIMAGE_DOS_HEADER pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pData );
+
+	if ( !pDosHeader )
+	{
+		return false;
+	}
+
+	PIMAGE_NT_HEADERS32 pNTHeader32 = reinterpret_cast<PIMAGE_NT_HEADERS32>( pData + pDosHeader->e_lfanew );
+
+	if ( pNTHeader32->Signature != IMAGE_NT_SIGNATURE )
+	{
+		return false;
+	}
+
+	size_t szImageFromHeaders = 0;
+
+	szImageFromHeaders = ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC ) ?
+		reinterpret_cast<PIMAGE_NT_HEADERS64>( pNTHeader32 )->OptionalHeader.SizeOfImage :
+		pNTHeader32->OptionalHeader.SizeOfImage;
+
+	szData = std::max( szData, szImageFromHeaders );
+
+	size_t szImageSize = 0;
+
+	const std::uintptr_t uTotalPages = ( szData / 0x1000 ) + 1;
+
+	for ( std::uintptr_t i = 0; i < uTotalPages; i++ )
+	{
+		const std::uint32_t uReadSize = ( i == ( uTotalPages - 1 ) ) ? ( szData % 0x1000 ) : 0x1000;
+
+		if ( IsValidPtr( pData + uReadSize ) ) {
+			szImageSize += uReadSize;
+			break;
+		}
+	}
+
+	vImageData.insert( vImageData.begin( ), pData, pData + szImageSize );
+
+	pImageData = vImageData.data( );
+	szImageDataSize = vImageData.size( );
+
+	if ( !readPeHeaderFromData( ) )
+	{
+		return false;
 	}
 
 	getSectionHeaders( );
+
+	bool bResult = true;
+
+	vListPeSection.reserve( getNumberOfSections( ) );
+
+	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
+	{
+		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;
+
+		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
+
+		if ( !readSectionFromData( uOffset, vListPeSection[ i ] ) )
+		{
+			bResult = false;
+		}
+	}
+
+	return bResult;
 }
+
+bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
+
+	size_t szFileSize = 0;
+	LPVOID pFileMapping = ProcessAccessHelp::createFileMappingViewRead( pFilePath, &szFileSize );
+
+	if ( pFileMapping == nullptr )
+		return false;
+
+	std::uint8_t* pData = reinterpret_cast<std::uint8_t*>( pFileMapping );
+
+	PIMAGE_DOS_HEADER pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pData );
+
+	if ( !pDosHeader )
+	{
+		UnmapViewOfFile( pFileMapping );
+		return false;
+	}
+
+	PIMAGE_NT_HEADERS32 pNTHeader32 = reinterpret_cast<PIMAGE_NT_HEADERS32>( pData + pDosHeader->e_lfanew );
+
+	if ( pNTHeader32->Signature != IMAGE_NT_SIGNATURE )
+	{
+		UnmapViewOfFile( pFileMapping );
+		return false;
+	}
+
+	size_t szImageFromHeaders = ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC ) ?
+		reinterpret_cast<PIMAGE_NT_HEADERS64>( pNTHeader32 )->OptionalHeader.SizeOfImage :
+		pNTHeader32->OptionalHeader.SizeOfImage;
+
+	pImageData = pData;
+	szImageDataSize = szImageFromHeaders;
+
+	if ( !readPeHeaderFromData( ) )
+	{
+		UnmapViewOfFile( pFileMapping );
+		return false;
+	}
+
+	getSectionHeaders( );
+
+	bool bResult = true;
+
+	vListPeSection.reserve( getNumberOfSections( ) );
+
+	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
+	{
+		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;
+
+		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
+
+		if ( !readSectionFromData( uOffset, vListPeSection[ i ] ) )
+		{
+			bResult = false;
+		}
+	}
+
+	return bResult;
+}
+
+PeParser::PeParser( const wchar_t* pFile, bool bReadSectionHeaders )
+{
+	initializeFromFile( pFile, bReadSectionHeaders );
+}
+
+PeParser::PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders )
+{
+	initializeFromProcess( uModuleBase, bReadSectionHeaders );
+}
+
+PeParser::PeParser( std::uint8_t* pData, std::size_t szData ) {
+
+	initializeFromCopyData( pData, szData );
+}
+
+//PeParser::PeParser( std::uint8_t* pData ) {
+//
+//	//initializeFromData( pData );
+//}
 
 PeParser::~PeParser( )
 {
@@ -104,11 +269,23 @@ PeParser::~PeParser( )
 	//	}
 	//}
 
+	if ( pFileMapping )
+	{
+		UnmapViewOfFile( pFileMapping );	
+	}
+
 	vListPeSection.clear( );
 }
 
 void PeParser::initClass( )
 {
+	if ( pFileMapping )
+	{
+		UnmapViewOfFile( pFileMapping );
+		pFileMapping = nullptr;
+	}
+	pImageData = nullptr;
+	szImageDataSize = 0;
 	pHeaderMemory = nullptr;
 	vImageData.clear( );
 	pDosHeader = nullptr;
@@ -122,6 +299,10 @@ void PeParser::initClass( )
 	pFileName = nullptr;
 	uFileSize = 0;
 	uModuleBaseAddress = 0;
+
+	if ( hFile && hFile != INVALID_HANDLE_VALUE )
+		CloseHandle( hFile );
+	
 	hFile = INVALID_HANDLE_VALUE;
 }
 
@@ -191,6 +372,24 @@ std::uint32_t PeParser::getEntryPoint( ) const
 {
 	return isPE32( ) ? pNTHeader32->OptionalHeader.AddressOfEntryPoint :
 		isPE64( ) ? pNTHeader64->OptionalHeader.AddressOfEntryPoint : 0;
+}
+
+bool PeParser::readPeHeaderFromData( )
+{
+	if ( !szImageDataSize )
+		return false;
+
+	auto szHeaders = sizeof( IMAGE_DOS_HEADER ) + 0x300 + sizeof( IMAGE_NT_HEADERS64 );
+
+	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>( 
+		new std::uint8_t[ szHeaders ]
+	);
+
+	std::memcpy( pHeaderMemory.get( ), pImageData, szHeaders );
+
+	getDosAndNtHeader( pHeaderMemory.get( ), static_cast<LONG>( szImageDataSize ) );
+
+	return isValidPeFile( );
 }
 
 bool PeParser::readPeHeaderFromProcess( bool bReadSectionHeaders )
@@ -293,11 +492,11 @@ bool PeParser::readPeSectionsFromProcess( )
 
 	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
 	{
-		std::uintptr_t uReadOffset = vListPeSection[ i ].sectionHeader.VirtualAddress + uModuleBaseAddress;
+		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;// +uModuleBaseAddress;
 
 		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
 
-		if ( !readSectionFromProcess( uReadOffset, vListPeSection[ i ] ) )
+		if ( !readSectionFromData( uOffset, vListPeSection[ i ] ) )
 		{
 			bResult = false;
 		}
@@ -334,7 +533,7 @@ bool PeParser::readPeSectionsFromFile( )
 
 bool PeParser::getSectionHeaders( )
 {
-	PIMAGE_SECTION_HEADER pSection = IMAGE_FIRST_SECTION( pNTHeader32 );
+	PIMAGE_SECTION_HEADER pSection = ( ProcessAccessHelp::is64BitProcess ) ? IMAGE_FIRST_SECTION( pNTHeader64 ) : IMAGE_FIRST_SECTION32( pNTHeader32 );
 
 	PeFileSection peFileSection;
 
@@ -522,9 +721,9 @@ void PeParser::closeFileHandle( )
 	}
 }
 
-bool PeParser::readSectionFromProcess( const std::uintptr_t uReadOffset, PeFileSection& peFileSection )
+bool PeParser::readSectionFromData( const std::uintptr_t uReadOffset, PeFileSection& peFileSection )
 {
-	return readSectionFrom( uReadOffset, peFileSection, true ); //process
+	return readSectionFrom( uReadOffset, peFileSection, true ); //is from data
 }
 
 bool PeParser::readSectionFromFile( const std::uint32_t uReadOffset, PeFileSection& peFileSection )
@@ -532,15 +731,18 @@ bool PeParser::readSectionFromFile( const std::uint32_t uReadOffset, PeFileSecti
 	return readSectionFrom( uReadOffset, peFileSection, false ); //file
 }
 
-bool PeParser::readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection )
+bool PeParser::readPeSectionFromData( std::uintptr_t uOffset, PeFileSection& peFileSection )
 {
-	std::uintptr_t uOffset = uReadOffset - uModuleBaseAddress;
-
-	if ( uOffset > vImageData.size( ) )
+	if ( uOffset > szImageDataSize )
 		return false;
 
-	peFileSection.pData = vImageData.data( ) + uOffset;
+	peFileSection.pData = pImageData + uOffset;
 
+	return true;
+}
+
+bool PeParser::readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection )
+{
 	return true;
 
 	//peFileSection.pData = new std::uint8_t[ peFileSection.uDataSize ];
@@ -548,16 +750,16 @@ bool PeParser::readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSecti
 	//return ProcessAccessHelp::readMemoryPartlyFromProcess( uReadOffset, peFileSection.uDataSize, peFileSection.pData );
 }
 
-bool PeParser::readMemoryData( const std::uintptr_t uReadOffset, std::size_t szSize, LPVOID pDataBuffer ) {
+bool PeParser::readMemoryData( const std::uintptr_t uOffset, std::size_t szSize, LPVOID pDataBuffer ) {
 
-	std::uintptr_t uOffset = uReadOffset - uModuleBaseAddress;
+	//std::uintptr_t uOffset = uReadOffset - uModuleBaseAddress;
 
-	if ( uOffset > vImageData.size( ) || ( uOffset + szSize ) > vImageData.size( ) )
+	if ( uOffset > szImageDataSize || ( uOffset + szSize ) > szImageDataSize )
 	{
 		return false;
 	}
 
-	std::memcpy( pDataBuffer, vImageData.data( ) + uOffset, szSize );
+	std::memcpy( pDataBuffer, pImageData + uOffset, szSize );
 
 	return true;
 
@@ -566,7 +768,7 @@ bool PeParser::readMemoryData( const std::uintptr_t uReadOffset, std::size_t szS
 	//return bResult;
 }
 
-bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess )
+bool PeParser::readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isFromData )
 {
 	const std::uint32_t uMaxReadSize = 0x100;
 
@@ -589,7 +791,7 @@ bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection&
 		peFileSection.uDataSize = uReadSize;
 		peFileSection.uNormalSize = uReadSize;
 
-		return ( isProcess ) ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
+		return ( isFromData ) ? readPeSectionFromData( uReadOffset, peFileSection ) :
 			readPeSectionFromFile( static_cast<std::uint32_t>( uReadOffset ), peFileSection );
 	}
 
@@ -607,7 +809,7 @@ bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection&
 	{
 		ZeroMemory( pData, uCurrentReadSize );
 
-		bResult = ( isProcess ) ? 
+		bResult = ( isFromData ) ? 
 			readMemoryData( uCurrentOffset, uCurrentReadSize, pData ):
 			ProcessAccessHelp::readMemoryFromFile( hFile, static_cast<LONG>( uCurrentOffset ), uCurrentReadSize, pData );
 		
@@ -649,7 +851,7 @@ bool PeParser::readSectionFrom( const std::uintptr_t uReadOffset, PeFileSection&
 
 	if ( peFileSection.uDataSize )
 	{
-		bResult = ( isProcess ) ? readPeSectionFromProcess( uReadOffset, peFileSection ) :
+		bResult = ( isFromData ) ? readPeSectionFromData( uReadOffset, peFileSection ) :
 			readPeSectionFromFile( static_cast<std::uint32_t>( uReadOffset ), peFileSection );		
 	}
 
@@ -1255,7 +1457,125 @@ std::uint32_t PeParser::getSectionAddressRVAByIndex( int index )
 PIMAGE_NT_HEADERS PeParser::getCurrentNtHeader( ) const
 {
 #ifdef WIN64
-	return ( ProcessAccessHelp::is64BitProcess ) ? reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader64 ) : reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader32 );
+	return ( ProcessAccessHelp::is64BitProcess ) ? 
+		reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader64 ) : 
+		reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader32 );
 #endif
 	return reinterpret_cast<PIMAGE_NT_HEADERS>( pNTHeader32 );
+}
+
+std::uint8_t* PeParser::getDataPE( ) {
+	return pImageData;
+}
+
+PIMAGE_EXPORT_DIRECTORY PeParser::getExportData( ) {
+
+	if ( !pImageData || !szImageDataSize )
+		return nullptr;
+
+	auto DirEntry = ( ProcessAccessHelp::is64BitProcess ) ? 
+		pNTHeader64->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ] : 
+		pNTHeader32->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ];
+
+	if ( !DirEntry.Size 
+		|| !DirEntry.VirtualAddress 
+		|| DirEntry.VirtualAddress > szImageDataSize
+		)
+	{
+		return nullptr;
+	}
+
+	return reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( pImageData + DirEntry.VirtualAddress );
+}
+
+bool PeParser::isValidExportTable( ) {
+
+	auto pExportDir = getExportData( );
+
+	return ( pExportDir != nullptr );
+}
+
+
+bool PeParser::isApiForwarded( const std::uintptr_t RVA )
+{
+	auto pDirExport = getDirectory( IMAGE_DIRECTORY_ENTRY_EXPORT );
+
+	return ( RVA > pDirExport->VirtualAddress )
+		&& ( RVA < ( static_cast<std::uintptr_t>( pDirExport->VirtualAddress ) + pDirExport->Size ) );
+}
+
+void PeParser::parseExportTable(  )
+{
+	auto pExportDir = getExportData( );
+
+	if ( !pExportDir )
+	{
+		return;
+	}
+	printf( "pImageData 0x%p\n", pImageData );
+	printf( "parseExportTable :: pExportDir 0x%p\n", pExportDir );
+
+	//std::function<void( const char* pName, std::uint16_t uOrdinal, std::uintptr_t FuncRVA )> callbackExport
+
+	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + pImageData );
+	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + pImageData );
+	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + pImageData );
+
+	//LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->pModulePath, pExportDir->NumberOfNames );
+
+	for ( std::uint16_t i = 0; i < pExportDir->NumberOfNames; i++ )
+	{
+		auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + pImageData );
+		std::uint16_t uOrdinal = static_cast<std::uint16_t>( pAddressOfNameOrdinals[ i ] + pExportDir->Base );
+		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
+
+		printf( "parseExportTable :: api %s uOrdinal %d RVA %llX\n", pFuncName, uOrdinal, RVA );
+		//std::uintptr_t VA = RVA + pModule->uModBase;
+
+		//LOGS( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
+
+		//if ( !isApiBlacklisted( pFuncName ) )
+		//{
+		//	if ( !isApiForwarded( RVA, pNtHeader ) )
+		//	{
+		//		addApi( pFuncName, i, uOrdinal, VA, RVA, false, pModule );
+		//	}
+		//	else
+		//	{
+		//		handleForwardedApi( RVA + uDeltaAddress, pFuncName, RVA, uOrdinal, pModule );
+		//	}
+		//}
+	}
+
+	// Exports without name
+	if ( pExportDir->NumberOfNames != pExportDir->NumberOfFunctions )
+	{
+		for ( std::uint16_t i = 0; i < pExportDir->NumberOfFunctions; i++ )
+		{
+			bool bWithoutName = true;
+			for ( std::uint16_t j = 0; j < pExportDir->NumberOfNames; j++ )
+			{
+				if ( pAddressOfNameOrdinals[ j ] == i )
+				{
+					bWithoutName = false;
+					break;
+				}
+			}
+			if ( bWithoutName && pAddressOfFuncs[ i ] != 0 )
+			{
+				std::uint16_t uOrdinal = static_cast<std::uint16_t>( i + pExportDir->Base );
+				std::uintptr_t RVA = pAddressOfFuncs[ i ];
+				//std::uintptr_t VA = RVA + pModule->uModBase;
+
+				//if ( !isApiForwarded( RVA, pNtHeader ) )
+				//{
+				//	addApiWithoutName( uOrdinal, VA, RVA, false, pModule );
+				//}
+				//else
+				//{
+				//	handleForwardedApi( RVA + uDeltaAddress, nullptr, RVA, uOrdinal, pModule );
+				//}
+			}
+		}
+	}
 }

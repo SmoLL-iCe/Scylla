@@ -128,13 +128,13 @@ public:
 	/*
 	 * file mapping view with different access level
 	 */
-	static LPVOID createFileMappingViewRead( const wchar_t* pFilePath );
-	static LPVOID createFileMappingViewFull( const wchar_t* pFilePath );
+	static LPVOID createFileMappingViewRead( const wchar_t* pFilePath, size_t* pSzFileSize );
+	static LPVOID createFileMappingViewFull( const wchar_t* pFilePath, size_t* pSzFileSize );
 
 	/*
 	 * Create a file mapping view of a file
 	 */
-	static LPVOID createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap );
+	static LPVOID createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap, size_t* pSzFileSize );
 
 	/*
 	 * Read memory from target process

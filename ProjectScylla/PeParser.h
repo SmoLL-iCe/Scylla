@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <functional>
 
 class PeSection
 {
@@ -38,11 +39,19 @@ public:
 class PeParser
 {
 public:
-
-	PeParser( const wchar_t* pFile, bool bReadSectionHeaders = true );
-	PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders = true );
+	PeParser( );
+	PeParser( const wchar_t* pFile, bool bReadSectionHeaders );
+	PeParser( const std::uintptr_t uModuleBase, bool bReadSectionHeaders );
+	PeParser( std::uint8_t* pData, std::size_t szData );
+	//PeParser( std::uint8_t* pData );
 
 	~PeParser( );
+
+	bool initializeFromFile( const wchar_t* pFile, bool bReadSectionHeaders );
+	bool initializeFromProcess( const std::uintptr_t uModuleBase, bool bReadSectionHeaders );
+	bool initializeFromCopyData( std::uint8_t* pData, std::size_t szData );
+	bool initializeWithMapping( const wchar_t* pFilePath );
+
 
 	bool isValidPeFile( ) const;
 	bool isPE64( ) const;
@@ -67,6 +76,7 @@ public:
 
 	bool readPeSectionsFromProcess( );
 	bool readPeSectionsFromFile( );
+
 	bool savePeFileToDisk( const wchar_t* pNewFile );
 	void removeDosStub( );
 	void alignAllSectionHeaders( );
@@ -89,14 +99,23 @@ public:
 
 	PIMAGE_NT_HEADERS getCurrentNtHeader( ) const;
 	IMAGE_DATA_DIRECTORY* getDirectory( const int directoryIndex );
+
+	bool isValidExportTable( );
+
+	bool isApiForwarded( const std::uintptr_t RVA );
+
+	PIMAGE_EXPORT_DIRECTORY getExportData( );
+
+	void parseExportTable( );
+	std::uint8_t* getDataPE( );
 protected:
-	PeParser( );
 	bool getImageData( );
 
 	static const std::uint32_t FileAlignmentConstant = 0x200;
 
 	const wchar_t* pFileName;
 	std::uintptr_t uModuleBaseAddress;
+
 
 	/************************************************************************/
 	/* PE FILE                                                              */
@@ -120,10 +139,15 @@ protected:
 	std::unique_ptr<std::uint8_t[ ]> pHeaderMemory;
 
 	std::vector<std::uint8_t> vImageData;
+	std::uint8_t* pImageData = nullptr;
+	std::size_t szImageDataSize = 0;
+
+	LPVOID pFileMapping = nullptr;
 
 	HANDLE hFile;
 	std::uint32_t uFileSize;
 
+	bool readPeHeaderFromData( );
 	bool readPeHeaderFromFile( bool bReadSectionHeaders );
 	bool readPeHeaderFromProcess( bool bReadSectionHeaders );
 
@@ -142,13 +166,14 @@ protected:
 
 	bool readPeSectionFromFile( std::uint32_t uReadOffset, PeFileSection& peFileSection );
 	bool readPeSectionFromProcess( std::uintptr_t uReadOffset, PeFileSection& peFileSection );
+	bool readPeSectionFromData( std::uintptr_t uOffset, PeFileSection& peFileSection );
 
-	bool readSectionFromProcess( const std::uintptr_t uReadOffset, PeFileSection& peFileSection );
+	bool readSectionFromData( const std::uintptr_t uReadOffset, PeFileSection& peFileSection );
 	bool readSectionFromFile( const std::uint32_t uReadOffset, PeFileSection& peFileSection );
 	bool readSectionFrom( std::uintptr_t uReadOffset, PeFileSection& peFileSection, const bool isProcess );
 
 
-	bool readMemoryData( const std::uintptr_t uReadOffset, std::size_t szSize, LPVOID pDataBuffer );
+	bool readMemoryData( const std::uintptr_t uOffset, std::size_t szSize, LPVOID pDataBuffer );
 
 	std::uintptr_t getStandardImagebase( ) const;
 

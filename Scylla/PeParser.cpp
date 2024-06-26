@@ -300,7 +300,7 @@ bool PeParser::readPeSectionsFromProcess()
 
 		listPeSection[i].normalSize = listPeSection[i].sectionHeader.Misc.VirtualSize;
 
-		if (!readSectionFromProcess(readOffset, listPeSection[i]))
+		if (!readSectionFromData(readOffset, listPeSection[i]))
 		{
 			retValue = false;
 		}
@@ -527,7 +527,7 @@ void PeParser::closeFileHandle()
 	}
 }
 
-bool PeParser::readSectionFromProcess(const DWORD_PTR readOffset, PeFileSection & peFileSection)
+bool PeParser::readSectionFromData(const DWORD_PTR readOffset, PeFileSection & peFileSection)
 {
 	return readSectionFrom(readOffset, peFileSection, true); //process
 }
