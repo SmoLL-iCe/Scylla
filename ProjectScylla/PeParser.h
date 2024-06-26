@@ -108,7 +108,6 @@ public:
 
 	PIMAGE_EXPORT_DIRECTORY getExportData( );
 
-	void parseExportTable( );
 	std::uint8_t* getDataPE( );
 protected:
 	bool getImageData( const std::size_t szSize = 0 );

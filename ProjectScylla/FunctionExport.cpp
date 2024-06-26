@@ -8,51 +8,47 @@
 #include "IATSearch.h"
 #include "ImportRebuilder.h"
 
-BOOL DumpProcessW( const wchar_t* fileToDump, std::uintptr_t imagebase, std::uintptr_t entrypoint, const wchar_t* fileResult )
+BOOL DumpProcessW( const wchar_t* pFileToDump, std::uintptr_t uImageBase, std::uintptr_t uEntrypoint, const wchar_t* pFileResult )
 {
-	PeParser* peFile = 0;
+	std::unique_ptr<PeParser> peFile{};
 
-	if ( fileToDump )
-	{
-		peFile = new PeParser( fileToDump, true );
-	}
-	else
-	{
-		peFile = new PeParser( imagebase, true );
-	}
+	( pFileToDump ) ?
+		peFile->initializeFromFile( pFileToDump, true ) :
+		peFile->initializeFromProcess( uImageBase, true );
 
-	bool result = peFile->dumpProcess( imagebase, entrypoint, fileResult );
-
-	delete peFile;
-	return result;
+	return peFile->dumpProcess( uImageBase, uEntrypoint, pFileResult );
 }
 
-BOOL WINAPI ScyllaRebuildFileW( const wchar_t* fileToRebuild, BOOL removeDosStub, BOOL updatePeHeaderChecksum, BOOL createBackup )
+BOOL WINAPI ScyllaRebuildFileW( const wchar_t* pFileToRebuild, BOOL bRemoveDosStub, BOOL bUpdatePeHeaderChecksum, BOOL bCreateBackup )
 {
-	if ( createBackup )
+	if ( bCreateBackup )
 	{
-		if ( !ProcessAccessHelp::createBackupFile( fileToRebuild ) )
+		if ( !ProcessAccessHelp::createBackupFile( pFileToRebuild ) )
 		{
 			return FALSE;
 		}
 	}
 
-	PeParser peFile( fileToRebuild, true );
-	if ( peFile.readPeSectionsFromFile( ) )
-	{
-		peFile.setDefaultFileAlignment( );
-		if ( removeDosStub )
-		{
-			peFile.removeDosStub( );
-		}
-		peFile.alignAllSectionHeaders( );
-		peFile.fixPeHeader( );
+	std::unique_ptr<PeParser> peFile = std::make_unique<PeParser>( pFileToRebuild, true );
 
-		if ( peFile.savePeFileToDisk( fileToRebuild ) )
+	if ( peFile->readPeSectionsFromFile( ) )
+	{
+		peFile->setDefaultFileAlignment( );
+
+		if ( bRemoveDosStub )
 		{
-			if ( updatePeHeaderChecksum )
+			peFile->removeDosStub( );
+		}
+
+		peFile->alignAllSectionHeaders( );
+
+		peFile->fixPeHeader( );
+
+		if ( peFile->savePeFileToDisk( pFileToRebuild ) )
+		{
+			if ( bUpdatePeHeaderChecksum )
 			{
-				PeParser::updatePeHeaderChecksum( fileToRebuild, ProcessAccessHelp::getFileSize( fileToRebuild ) );
+				PeParser::updatePeHeaderChecksum( pFileToRebuild, ProcessAccessHelp::getFileSize( pFileToRebuild ) );
 			}
 			return TRUE;
 		}
@@ -61,209 +57,219 @@ BOOL WINAPI ScyllaRebuildFileW( const wchar_t* fileToRebuild, BOOL removeDosStub
 	return FALSE;
 }
 
-BOOL WINAPI ScyllaRebuildFileA( const char* fileToRebuild, BOOL removeDosStub, BOOL updatePeHeaderChecksum, BOOL createBackup )
+BOOL WINAPI ScyllaRebuildFileA( const char* pFileToRebuild, BOOL bRemoveDosStub, BOOL bUpdatePeHeaderChecksum, BOOL bCreateBackup )
 {
-	wchar_t fileToRebuildW[ MAX_PATH ];
-	if ( MultiByteToWideChar( CP_ACP, 0, fileToRebuild, -1, fileToRebuildW, _countof( fileToRebuildW ) ) == 0 )
+	wchar_t fileToRebuildW[ MAX_PATH ]{ };
+
+	if ( MultiByteToWideChar( CP_ACP, 0, pFileToRebuild, -1, fileToRebuildW, _countof( fileToRebuildW ) ) == 0 )
 	{
 		return FALSE;
 	}
 
-	return ScyllaRebuildFileW( fileToRebuildW, removeDosStub, updatePeHeaderChecksum, createBackup );
+	return ScyllaRebuildFileW( fileToRebuildW, bRemoveDosStub, bUpdatePeHeaderChecksum, bCreateBackup );
 }
 
-BOOL WINAPI ScyllaDumpCurrentProcessW( const wchar_t* fileToDump, std::uintptr_t imagebase, std::uintptr_t entrypoint, const wchar_t* fileResult )
+BOOL WINAPI ScyllaDumpCurrentProcessW( const wchar_t* pFileToDump, std::uintptr_t uImageBase, std::uintptr_t uEntrypoint, const wchar_t* pFileResult )
 {
 	ProcessAccessHelp::setCurrentProcessAsTarget( );
 
-	return DumpProcessW( fileToDump, imagebase, entrypoint, fileResult );
+	return DumpProcessW( pFileToDump, uImageBase, uEntrypoint, pFileResult );
 }
 
-BOOL WINAPI ScyllaDumpProcessW( std::uintptr_t pid, const wchar_t* fileToDump, std::uintptr_t imagebase, std::uintptr_t entrypoint, const wchar_t* fileResult )
+BOOL WINAPI ScyllaDumpProcessW( std::uintptr_t pid, const wchar_t* pFileToDump, std::uintptr_t uImageBase, std::uintptr_t uEntrypoint, const wchar_t* pFileResult )
 {
 	if ( ProcessAccessHelp::openProcessHandle( (std::uint32_t)pid ) )
 	{
-		return DumpProcessW( fileToDump, imagebase, entrypoint, fileResult );
+		return DumpProcessW( pFileToDump, uImageBase, uEntrypoint, pFileResult );
 	}
-	else
-	{
-		return FALSE;
-	}
+
+	return FALSE;
 }
 
-BOOL WINAPI ScyllaDumpCurrentProcessA( const char* fileToDump, std::uintptr_t imagebase, std::uintptr_t entrypoint, const char* fileResult )
+BOOL WINAPI ScyllaDumpCurrentProcessA( const char* pFileToDump, std::uintptr_t uImageBase, std::uintptr_t uEntrypoint, const char* pFileResult )
 {
-	wchar_t fileToDumpW[ MAX_PATH ];
-	wchar_t fileResultW[ MAX_PATH ];
+	wchar_t fileToDumpW[ MAX_PATH ]{ };
+	wchar_t fileResultW[ MAX_PATH ]{ };
 
-	if ( fileResult == 0 )
+	if ( pFileResult == 0 )
 	{
 		return FALSE;
 	}
 
-	if ( MultiByteToWideChar( CP_ACP, 0, fileResult, -1, fileResultW, _countof( fileResultW ) ) == 0 )
+	if ( MultiByteToWideChar( CP_ACP, 0, pFileResult, -1, fileResultW, _countof( fileResultW ) ) == 0 )
 	{
 		return FALSE;
 	}
 
-	if ( fileToDump != 0 )
+	if ( pFileToDump != 0 )
 	{
-		if ( MultiByteToWideChar( CP_ACP, 0, fileToDump, -1, fileToDumpW, _countof( fileToDumpW ) ) == 0 )
+		if ( MultiByteToWideChar( CP_ACP, 0, pFileToDump, -1, fileToDumpW, _countof( fileToDumpW ) ) == 0 )
 		{
 			return FALSE;
 		}
 
-		return ScyllaDumpCurrentProcessW( fileToDumpW, imagebase, entrypoint, fileResultW );
+		return ScyllaDumpCurrentProcessW( fileToDumpW, uImageBase, uEntrypoint, fileResultW );
 	}
-	else
-	{
-		return ScyllaDumpCurrentProcessW( 0, imagebase, entrypoint, fileResultW );
-	}
+
+	return ScyllaDumpCurrentProcessW( 0, uImageBase, uEntrypoint, fileResultW );
 }
 
-BOOL WINAPI ScyllaDumpProcessA( std::uintptr_t pid, const char* fileToDump, std::uintptr_t imagebase, std::uintptr_t entrypoint, const char* fileResult )
+BOOL WINAPI ScyllaDumpProcessA( std::uintptr_t pid, const char* pFileToDump, std::uintptr_t uImageBase, std::uintptr_t uEntrypoint, const char* pFileResult )
 {
 	wchar_t fileToDumpW[ MAX_PATH ];
 	wchar_t fileResultW[ MAX_PATH ];
 
-	if ( fileResult == 0 )
+	if ( pFileResult == 0 )
 	{
 		return FALSE;
 	}
 
-	if ( MultiByteToWideChar( CP_ACP, 0, fileResult, -1, fileResultW, _countof( fileResultW ) ) == 0 )
+	if ( MultiByteToWideChar( CP_ACP, 0, pFileResult, -1, fileResultW, _countof( fileResultW ) ) == 0 )
 	{
 		return FALSE;
 	}
 
-	if ( fileToDump != 0 )
+	if ( pFileToDump != 0 )
 	{
-		if ( MultiByteToWideChar( CP_ACP, 0, fileToDump, -1, fileToDumpW, _countof( fileToDumpW ) ) == 0 )
+		if ( MultiByteToWideChar( CP_ACP, 0, pFileToDump, -1, fileToDumpW, _countof( fileToDumpW ) ) == 0 )
 		{
 			return FALSE;
 		}
 
-		return ScyllaDumpProcessW( pid, fileToDumpW, imagebase, entrypoint, fileResultW );
+		return ScyllaDumpProcessW( pid, fileToDumpW, uImageBase, uEntrypoint, fileResultW );
 	}
-	else
-	{
-		return ScyllaDumpProcessW( pid, 0, imagebase, entrypoint, fileResultW );
-	}
+
+	return ScyllaDumpProcessW( pid, 0, uImageBase, uEntrypoint, fileResultW );	
 }
 
-int WINAPI ScyllaIatSearch( std::uint32_t dwProcessId, std::uintptr_t* iatStart, std::uint32_t* pIatSize, std::uintptr_t searchStart, BOOL advancedSearch )
+int WINAPI ScyllaIatSearch( std::uint32_t uProcessId, std::uintptr_t* pIatStart, std::uint32_t* pIatSize, std::uintptr_t uSearchStart, BOOL bAdvancedSearch )
 {
-	ApiReader apiReader;
-	ProcessLister processLister;
-	Process* processPtr = 0;
-	IATSearch iatSearch;
+	ApiReader apiReader{ };
+
+	ProcessLister processLister{};
+
+	Process currentProcess = {};
+
+	IATSearch iatSearch{};
 
 	std::vector<Process>& vProcessList = processLister.getProcessListSnapshotNative( );
-	for ( std::vector<Process>::iterator it = vProcessList.begin( ); it != vProcessList.end( ); ++it )
+
+	for ( const auto& Proc : vProcessList )
 	{
-		if ( it->PID == dwProcessId )
+		if ( Proc.PID == uProcessId )
 		{
-			processPtr = &( *it );
+			currentProcess = Proc;
 			break;
 		}
 	}
 
-	if ( !processPtr )
+	if ( !currentProcess.PID )
 		return SCY_ERROR_PIDNOTFOUND;
 
 	ProcessAccessHelp::closeProcessHandle( );
+
 	apiReader.clearAll( );
 
-	if ( !ProcessAccessHelp::openProcessHandle( processPtr->PID ) )
+	if ( !ProcessAccessHelp::openProcessHandle( currentProcess.PID ) )
 	{
 		return SCY_ERROR_PROCOPEN;
 	}
 
 	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::vModuleList );
 
-	//ProcessAccessHelp::selectedModule = 0;
-	ProcessAccessHelp::uTargetImageBase = processPtr->uImageBase;
-	ProcessAccessHelp::uTargetSizeOfImage = processPtr->uImageSize;
+	ProcessAccessHelp::uTargetImageBase = currentProcess.uImageBase;
+
+	ProcessAccessHelp::uTargetSizeOfImage = currentProcess.uImageSize;
 
 	apiReader.readApisFromModuleList( );
 
 	int retVal = SCY_ERROR_IATNOTFOUND;
 
-	if ( advancedSearch )
+	if ( bAdvancedSearch )
 	{
-		if ( iatSearch.searchImportAddressTableInProcess( searchStart, iatStart, pIatSize, true ) )
+		if ( iatSearch.searchImportAddressTableInProcess( uSearchStart, pIatStart, pIatSize, true ) )
 		{
 			retVal = SCY_ERROR_SUCCESS;
 		}
 	}
 	else
 	{
-		if ( iatSearch.searchImportAddressTableInProcess( searchStart, iatStart, pIatSize, false ) )
+		if ( iatSearch.searchImportAddressTableInProcess( uSearchStart, pIatStart, pIatSize, false ) )
 		{
 			retVal = SCY_ERROR_SUCCESS;
 		}
 	}
 
 	vProcessList.clear( );
+
 	ProcessAccessHelp::closeProcessHandle( );
+
 	apiReader.clearAll( );
 
 	return retVal;
 }
 
-
-int WINAPI ScyllaIatFixAutoW( std::uintptr_t iatAddr, std::uint32_t pIatSize, std::uint32_t dwProcessId, const wchar_t* dumpFile, const wchar_t* iatFixFile )
+int WINAPI ScyllaIatFixAutoW( std::uintptr_t uIatAddr, std::uint32_t uIatSize, std::uint32_t uProcessId, const wchar_t* pDumpFile, const wchar_t* pIatFixFile )
 {
-	ApiReader apiReader;
-	ProcessLister processLister;
-	Process* processPtr = 0;
+	ApiReader apiReader{};
+
+	ProcessLister processLister{};
+
+	Process currentProcess{};
+
 	std::map<std::uintptr_t, ImportModuleThunk> vModuleList;
 
 	std::vector<Process>& vProcessList = processLister.getProcessListSnapshotNative( );
-	for ( std::vector<Process>::iterator it = vProcessList.begin( ); it != vProcessList.end( ); ++it )
+
+	for ( const auto& Proc : vProcessList )
 	{
-		if ( it->PID == dwProcessId )
+		if ( Proc.PID == uProcessId )
 		{
-			processPtr = &( *it );
+			currentProcess = Proc;
 			break;
 		}
 	}
 
-	if ( !processPtr )
+	if ( !currentProcess.PID )
 		return SCY_ERROR_PIDNOTFOUND;
 
 	ProcessAccessHelp::closeProcessHandle( );
+
 	apiReader.clearAll( );
 
-	if ( !ProcessAccessHelp::openProcessHandle( processPtr->PID ) )
+	if ( !ProcessAccessHelp::openProcessHandle( currentProcess.PID ) )
 	{
 		return SCY_ERROR_PROCOPEN;
 	}
 
 	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::vModuleList );
 
-	//ProcessAccessHelp::selectedModule = 0;
-	ProcessAccessHelp::uTargetImageBase = processPtr->uImageBase;
-	ProcessAccessHelp::uTargetSizeOfImage = processPtr->uImageSize;
+	ProcessAccessHelp::uTargetImageBase = currentProcess.uImageBase;
+
+	ProcessAccessHelp::uTargetSizeOfImage = currentProcess.uImageSize;
 
 	apiReader.readApisFromModuleList( );
 
-	apiReader.readAndParseIAT( iatAddr, pIatSize, vModuleList );
+	apiReader.readAndParseIAT( uIatAddr, uIatSize, vModuleList );
 
 	//add IAT section to dump
-	ImportRebuilder importRebuild( dumpFile );
+	ImportRebuilder importRebuild( pDumpFile );
+
 	importRebuild.enableOFTSupport( );
 
 	int retVal = SCY_ERROR_IATWRITE;
 
-	if ( importRebuild.rebuildImportTable( iatFixFile, vModuleList ) )
+	if ( importRebuild.rebuildImportTable( pIatFixFile, vModuleList ) )
 	{
 		retVal = SCY_ERROR_SUCCESS;
 	}
 
 	vProcessList.clear( );
+
 	vModuleList.clear( );
+
 	ProcessAccessHelp::closeProcessHandle( );
+
 	apiReader.clearAll( );
 
 	return retVal;
