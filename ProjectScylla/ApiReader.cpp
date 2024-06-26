@@ -65,43 +65,21 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 
 void ApiReader::parseModuleWithMapping( ModuleInfo* pModuleInfo )
 {
-	//std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
+	std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
 
-	//if ( !peParser->initializeWithMapping( pModuleInfo->pModulePath ) )
-	//{
-	//	LOGS( "parseModuleWithMapping :: Error initializing with mapping %ls", pModuleInfo->pModulePath );
-	//	return;
-	//}
-
-	//if ( peParser->isValidExportTable( ) )
-	//{
-	//	parseExportTable( pModuleInfo, peParser->getCurrentNtHeader( ),
-	//		reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
-	//			reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) + peParser->getCurrentNtHeader( )->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
-	//		reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) );
-	//}
-
-
-
-
-	size_t szFileSize = 0;
-	LPVOID pFileMapping = createFileMappingViewRead( pModuleInfo->pModulePath, &szFileSize );
-
-	if ( pFileMapping == nullptr )
-		return;
-
-	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pFileMapping );
-	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( pFileMapping ) + pDosHeader->e_lfanew );
-
-	if ( isPeAndExportTableValid( pNtHeader ) )
+	if ( !peParser->initializeWithMapping( pModuleInfo->pModulePath ) )
 	{
-		parseExportTable( pModuleInfo, pNtHeader,
-			reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
-				reinterpret_cast<std::uintptr_t>( pFileMapping ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
-			reinterpret_cast<std::uintptr_t>( pFileMapping ) );
+		LOGS( "parseModuleWithMapping :: Error initializing with mapping %ls", pModuleInfo->pModulePath );
+		return;
 	}
 
-	UnmapViewOfFile( pFileMapping );
+	if ( peParser->isValidExportTable( ) )
+	{
+		parseExportTable( pModuleInfo, peParser->getCurrentNtHeader( ),
+			reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
+				reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) + peParser->getCurrentNtHeader( )->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
+			reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) );
+	}
 }
 
 bool ApiReader::isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader )

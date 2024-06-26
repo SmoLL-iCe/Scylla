@@ -88,12 +88,12 @@ bool PeParser::initializeFromProcess( const std::uintptr_t uModuleBase, bool bRe
 	
 	initClass( );
 
+	uModuleBaseAddress = uModuleBase;
+
 	if ( !uModuleBaseAddress )
 	{
 		return false;
 	}
-
-	uModuleBaseAddress = uModuleBase;
 
 	readPeHeaderFromProcess( bReadSectionHeaders );
 
@@ -182,7 +182,7 @@ bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData )
 bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
 
 	size_t szFileSize = 0;
-	LPVOID pFileMapping = ProcessAccessHelp::createFileMappingViewRead( pFilePath, &szFileSize );
+	pFileMapping = ProcessAccessHelp::createFileMappingViewRead( pFilePath, &szFileSize );
 
 	if ( pFileMapping == nullptr )
 		return false;
