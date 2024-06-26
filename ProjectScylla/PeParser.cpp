@@ -34,9 +34,9 @@ PeParser::PeParser( )
 	initClass( );
 }
 
-bool PeParser::getImageData( )
+bool PeParser::getImageData( const std::size_t szSize )
 {
-	const std::uintptr_t uSize = std::max( getImageSize( ), uFileSize );
+	std::uintptr_t uSize = std::max( std::max( getImageSize( ), uFileSize ), static_cast<std::uint32_t>( szSize ) );
 
 	vImageData.clear( );
 
@@ -110,6 +110,47 @@ bool PeParser::initializeFromProcess( const std::uintptr_t uModuleBase, bool bRe
 	return getSectionHeaders( );
 }
 
+bool PeParser::initializeFromRemoteModule( const std::uintptr_t uModuleBase, const std::size_t szModuleSize ) {
+
+	initClass( );
+
+	uModuleBaseAddress = uModuleBase;
+
+	if ( !uModuleBaseAddress )
+	{
+		return false;
+	}
+
+	readPeHeaderFromProcess( true );
+
+	if ( !isValidPeFile( ) )
+	{
+		return false;
+	}
+
+	getImageData( szModuleSize );
+
+	getSectionHeaders( );
+
+	bool bResult = true;
+
+	vListPeSection.reserve( getNumberOfSections( ) );
+
+	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
+	{
+		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;
+
+		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
+
+		if ( !readSectionFromData( uOffset, vListPeSection[ i ] ) )
+		{
+			bResult = false;
+		}
+	}
+
+	return bResult;
+}
+
 bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData ) {
 
 	PIMAGE_DOS_HEADER pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pData );
@@ -179,21 +220,16 @@ bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData )
 	return bResult;
 }
 
-bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
+bool PeParser::initializeFromMapped( void* pModule ) {
 
-	size_t szFileSize = 0;
-	pFileMapping = ProcessAccessHelp::createFileMappingViewRead( pFilePath, &szFileSize );
+	initClass( );
 
-	if ( pFileMapping == nullptr )
-		return false;
-
-	std::uint8_t* pData = reinterpret_cast<std::uint8_t*>( pFileMapping );
+	std::uint8_t* pData = reinterpret_cast<std::uint8_t*>( pModule );
 
 	PIMAGE_DOS_HEADER pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pData );
 
 	if ( !pDosHeader )
 	{
-		UnmapViewOfFile( pFileMapping );
 		return false;
 	}
 
@@ -201,7 +237,6 @@ bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
 
 	if ( pNTHeader32->Signature != IMAGE_NT_SIGNATURE )
 	{
-		UnmapViewOfFile( pFileMapping );
 		return false;
 	}
 
@@ -214,7 +249,6 @@ bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
 
 	if ( !readPeHeaderFromData( ) )
 	{
-		UnmapViewOfFile( pFileMapping );
 		return false;
 	}
 
@@ -235,6 +269,30 @@ bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
 			bResult = false;
 		}
 	}
+
+	return bResult;
+}
+
+bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
+
+	size_t szFileSize = 0;
+
+	auto pFileMappingData = ProcessAccessHelp::createFileMappingViewRead( pFilePath, &szFileSize );
+
+	if ( pFileMappingData == nullptr )
+		return false;
+
+
+	auto bResult = initializeFromMapped( pFileMappingData );
+
+	if ( !bResult )
+	{
+		UnmapViewOfFile( pFileMappingData );
+
+		return false;
+	}
+
+	pFileMapping = pFileMappingData;
 
 	return bResult;
 }
@@ -492,7 +550,7 @@ bool PeParser::readPeSectionsFromProcess( )
 
 	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
 	{
-		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;// +uModuleBaseAddress;
+		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;
 
 		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
 
@@ -634,6 +692,9 @@ std::uint32_t PeParser::calcCorrectPeHeaderSize( bool bReadSectionHeaders ) cons
 }
 
 std::uint32_t PeParser::getImageSize( ) const {
+
+	if ( !pNTHeader32 )
+		return 0;
 
 	if ( isPE32( ) )
 	{

@@ -6,6 +6,7 @@
 #include "ProcessAccessHelp.h"
 #include "Thunks.h"
 #include <unordered_map>
+#include "PeParser.h"
 
 typedef std::pair<std::uintptr_t, ApiInfo*> API_Pair;
 
@@ -43,7 +44,7 @@ private:
 	void parseModule( ModuleInfo* pModule );
 	void parseModuleWithProcess( ModuleInfo* pModule );
 
-	void parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress );
+	void parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser );
 
 	ModuleInfo* findModuleByName( const wchar_t* pName );
 

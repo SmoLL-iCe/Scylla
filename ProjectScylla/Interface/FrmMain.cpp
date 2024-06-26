@@ -284,8 +284,11 @@ void FrameControls( glWindow* instance )
         //  auto future = std::async( std::launch::async, &ScyllaContext::setProcessById, &scyllaCtx, GetCurrentProcessId( ) );
         std::thread( [&]( )
             {
+
+                ProcessAccessHelp::getProcessModules( GetCurrentProcess( ), ProcessAccessHelp::vOwnModuleList );
+
                 scyllaCtx.setProcessById( GetCurrentProcessId( ) );
-                //scyllaCtx.setProcessById( ProcessAccessHelp::getProcessByName( L"project1.exe" ) );
+                //scyllaCtx.setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
                 scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
             } ).detach( );

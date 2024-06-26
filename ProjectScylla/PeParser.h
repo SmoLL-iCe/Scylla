@@ -49,7 +49,9 @@ public:
 
 	bool initializeFromFile( const wchar_t* pFile, bool bReadSectionHeaders );
 	bool initializeFromProcess( const std::uintptr_t uModuleBase, bool bReadSectionHeaders );
+	bool initializeFromRemoteModule( const std::uintptr_t uModuleBase, const std::size_t szModuleSize = 0 );
 	bool initializeFromCopyData( std::uint8_t* pData, std::size_t szData );
+	bool initializeFromMapped( void* pModule );
 	bool initializeWithMapping( const wchar_t* pFilePath );
 
 
@@ -109,7 +111,7 @@ public:
 	void parseExportTable( );
 	std::uint8_t* getDataPE( );
 protected:
-	bool getImageData( );
+	bool getImageData( const std::size_t szSize = 0 );
 
 	static const std::uint32_t FileAlignmentConstant = 0x200;
 

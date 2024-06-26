@@ -47,6 +47,9 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 {
 	pModule->parsing = true;
 
+	readExportTableAlwaysFromDisk = false;
+
+
 	if ( isWinSxSModule( pModule ) || ( readExportTableAlwaysFromDisk && !isModuleLoadedInOwnProcess( pModule ) ) )
 	{
 		parseModuleWithMapping( pModule );
@@ -73,14 +76,122 @@ void ApiReader::parseModuleWithMapping( ModuleInfo* pModuleInfo )
 		return;
 	}
 
-	if ( peParser->isValidExportTable( ) )
+	if ( !peParser->isValidExportTable( ) )
+		return;
+
+	parseExportTable( pModuleInfo, peParser );
+}
+
+void ApiReader::parseModuleWithProcess( ModuleInfo* pModule )
+{
+	std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
+
+	if ( !peParser->initializeFromRemoteModule( pModule->uModBase, pModule->uModBaseSize ) )
 	{
-		parseExportTable( pModuleInfo, peParser->getCurrentNtHeader( ),
-			reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(
-				reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) + peParser->getCurrentNtHeader( )->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ),
-			reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) ) );
+		LOGS( "parseModuleWithProcess :: Error initializing from remote module %ls", pModule->pModulePath );
+		return;
+	}
+
+	if ( !peParser->isValidExportTable( ) )
+		return;
+
+	parseExportTable( pModule, peParser );
+}
+
+void ApiReader::parseModuleWithOwnProcess( ModuleInfo* pModule ) {
+
+	HMODULE hModule = GetModuleHandle( pModule->getFilename( ) );
+
+	if ( hModule ) {
+
+		std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
+
+		peParser->initializeFromMapped( hModule );
+
+		if ( !peParser->isValidExportTable( ) ) {
+			return;
+		}
+
+		parseExportTable( pModule, peParser );
+		
+	}
+	else {
+		LOGS( "parseModuleWithOwnProcess :: hModule is nullptr" );
 	}
 }
+
+void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser )
+{
+	if ( !peParser->isValidExportTable( ) ) 
+	{
+		return;
+	}
+
+	PIMAGE_NT_HEADERS pNtHeader = peParser->getCurrentNtHeader( );
+	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
+	std::uintptr_t uDeltaAddress = reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) );
+
+	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
+	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
+	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
+
+	LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->pModulePath, pExportDir->NumberOfNames );
+
+	for ( std::uint16_t i = 0; i < pExportDir->NumberOfNames; i++ )
+	{
+		auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + uDeltaAddress );
+		std::uint16_t uOrdinal = static_cast<std::uint16_t>( pAddressOfNameOrdinals[ i ] + pExportDir->Base );
+		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
+		std::uintptr_t VA = RVA + pModule->uModBase;
+
+		LOGS( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
+
+		if ( !isApiBlacklisted( pFuncName ) )
+		{
+			if ( !isApiForwarded( RVA, pNtHeader ) )
+			{
+				addApi( pFuncName, i, uOrdinal, VA, RVA, false, pModule );
+			}
+			else
+			{
+				handleForwardedApi( RVA + uDeltaAddress, pFuncName, RVA, uOrdinal, pModule );
+			}
+		}
+	}
+
+	// Exports without name
+	if ( pExportDir->NumberOfNames != pExportDir->NumberOfFunctions )
+	{
+		for ( std::uint16_t i = 0; i < pExportDir->NumberOfFunctions; i++ )
+		{
+			bool bWithoutName = true;
+			for ( std::uint16_t j = 0; j < pExportDir->NumberOfNames; j++ )
+			{
+				if ( pAddressOfNameOrdinals[ j ] == i )
+				{
+					bWithoutName = false;
+					break;
+				}
+			}
+			if ( bWithoutName && pAddressOfFuncs[ i ] != 0 )
+			{
+				std::uint16_t uOrdinal = static_cast<std::uint16_t>( i + pExportDir->Base );
+				std::uintptr_t RVA = pAddressOfFuncs[ i ];
+				std::uintptr_t VA = RVA + pModule->uModBase;
+
+				if ( !isApiForwarded( RVA, pNtHeader ) )
+				{
+					addApiWithoutName( uOrdinal, VA, RVA, false, pModule );
+				}
+				else
+				{
+					handleForwardedApi( RVA + uDeltaAddress, nullptr, RVA, uOrdinal, pModule );
+				}
+			}
+		}
+	}
+}
+
 
 bool ApiReader::isApiForwarded( std::uintptr_t RVA, PIMAGE_NT_HEADERS pNtHeader )
 {
@@ -117,7 +228,8 @@ void ApiReader::handleForwardedApi( std::uintptr_t uVaStringPointer, const char*
 	if ( !_strnicmp( strDllName.c_str( ), "API-", 4 ) || !_strnicmp( strDllName.c_str( ), "EXT-", 4 ) ) {
 		HMODULE hModTemp = GetModuleHandleA( strDllName.c_str( ) );
 		if ( !hModTemp ) {
-			hModTemp = LoadLibraryA( strDllName.c_str( ) );
+
+			hModTemp = LoadLibraryExA( strDllName.c_str( ), nullptr, DONT_RESOLVE_DLL_REFERENCES );
 		}
 
 		if ( !hModTemp ) {
@@ -230,7 +342,8 @@ std::unique_ptr<std::uint8_t[ ]> ApiReader::getExportTableFromProcess( ModuleInf
 		uReadSize = sizeof( IMAGE_EXPORT_DIRECTORY ) + 100;
 	}
 
-	if ( uReadSize == 0 ) return nullptr;
+	if ( uReadSize == 0 ) 
+		return nullptr;
 
 	auto pBufferExportTable = std::make_unique<std::uint8_t[ ]>( uReadSize );
 
@@ -245,90 +358,6 @@ std::unique_ptr<std::uint8_t[ ]> ApiReader::getExportTableFromProcess( ModuleInf
 	return pBufferExportTable;
 }
 
-void ApiReader::parseModuleWithProcess( ModuleInfo* pModule )
-{
-	PeParser peParser( pModule->uModBase, false );
-
-	if ( !peParser.isValidPeFile( ) )
-		return;
-
-	auto pNtHeader = peParser.getCurrentNtHeader( );
-
-	if ( peParser.hasExportDirectory( ) )
-	{
-		auto bufferExportTable = getExportTableFromProcess( pModule, pNtHeader );
-
-		if ( bufferExportTable )
-		{
-			parseExportTable( pModule, pNtHeader,
-				reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( bufferExportTable.get( ) ),
-				reinterpret_cast<std::uintptr_t>( bufferExportTable.get( ) ) - pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
-		}
-	}
-}
-
-void ApiReader::parseExportTable( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress )
-{
-	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
-	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
-	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
-
-	LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->pModulePath, pExportDir->NumberOfNames );
-
-	for ( std::uint16_t i = 0; i < pExportDir->NumberOfNames; i++ )
-	{
-		auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + uDeltaAddress );
-		std::uint16_t uOrdinal = static_cast<std::uint16_t>( pAddressOfNameOrdinals[ i ] + pExportDir->Base );
-		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
-		std::uintptr_t VA = RVA + pModule->uModBase;
-
-		LOGS( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
-
-		if ( !isApiBlacklisted( pFuncName ) )
-		{
-			if ( !isApiForwarded( RVA, pNtHeader ) )
-			{
-				addApi( pFuncName, i, uOrdinal, VA, RVA, false, pModule );
-			}
-			else
-			{
-				handleForwardedApi( RVA + uDeltaAddress, pFuncName, RVA, uOrdinal, pModule );
-			}
-		}
-	}
-
-	// Exports without name
-	if ( pExportDir->NumberOfNames != pExportDir->NumberOfFunctions )
-	{
-		for ( std::uint16_t i = 0; i < pExportDir->NumberOfFunctions; i++ )
-		{
-			bool bWithoutName = true;
-			for ( std::uint16_t j = 0; j < pExportDir->NumberOfNames; j++ )
-			{
-				if ( pAddressOfNameOrdinals[ j ] == i )
-				{
-					bWithoutName = false;
-					break;
-				}
-			}
-			if ( bWithoutName && pAddressOfFuncs[ i ] != 0 )
-			{
-				std::uint16_t uOrdinal = static_cast<std::uint16_t>( i + pExportDir->Base );
-				std::uintptr_t RVA = pAddressOfFuncs[ i ];
-				std::uintptr_t VA = RVA + pModule->uModBase;
-
-				if ( !isApiForwarded( RVA, pNtHeader ) )
-				{
-					addApiWithoutName( uOrdinal, VA, RVA, false, pModule );
-				}
-				else
-				{
-					handleForwardedApi( RVA + uDeltaAddress, nullptr, RVA, uOrdinal, pModule );
-				}
-			}
-		}
-	}
-}
 
 void ApiReader::findApiByModuleAndOrdinal( ModuleInfo* pModule, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
@@ -374,22 +403,6 @@ bool ApiReader::isModuleLoadedInOwnProcess( ModuleInfo* pModule ) {
 		}
 	}
 	return false;
-}
-
-void ApiReader::parseModuleWithOwnProcess( ModuleInfo* pModule ) {
-	HMODULE hModule = GetModuleHandle( pModule->getFilename( ) );
-
-	if ( hModule ) {
-		auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( hModule );
-		auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( hModule ) + pDosHeader->e_lfanew );
-
-		if ( isPeAndExportTableValid( pNtHeader ) ) {
-			parseExportTable( pModule, pNtHeader, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( reinterpret_cast<std::uintptr_t>( hModule ) + pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress ), reinterpret_cast<std::uintptr_t>( hModule ) );
-		}
-	}
-	else {
-		LOGS( "parseModuleWithOwnProcess :: hModule is nullptr" );
-	}
 }
 
 bool ApiReader::isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader ) {
