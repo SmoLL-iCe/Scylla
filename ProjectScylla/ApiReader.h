@@ -56,7 +56,7 @@ private:
 	void parseModuleWithOwnProcess( ModuleInfo* pModule );
 	bool isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader );
 	void findApiInProcess( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
-	bool findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
+	bool findApiInExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
 
 	std::unique_ptr<std::uint8_t[ ]> getHeaderFromProcess( ModuleInfo* pModule );
 	std::unique_ptr<std::uint8_t[ ]> getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader );

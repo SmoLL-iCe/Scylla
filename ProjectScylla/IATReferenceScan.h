@@ -78,7 +78,7 @@ private:
 	std::uint32_t ImageSize;
 
 
-	std::unique_ptr<std::uintptr_t[ ]> iatBackup {};
+	std::unique_ptr<std::uint8_t[ ]> iatBackup {};
 
 	std::vector<IATReference> vIatReferenceList;
 	std::vector<IATReference> vIatDirectImportList;

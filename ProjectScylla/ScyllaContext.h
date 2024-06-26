@@ -32,6 +32,7 @@ public:
 	std::uintptr_t m_addressIAT;
 	std::uint32_t m_sizeIAT;
 	ImportsHandling* getImportsHandling( );
+	ApiReader* getApiReader( );
 private:
 	void getPePreInfo( );
 	void checkSuspendProcess( );

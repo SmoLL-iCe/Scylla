@@ -294,7 +294,7 @@ void IATReferenceScan::patchDirectImportInMemory( IATReference* pRef ) const {
 std::uintptr_t IATReferenceScan::lookUpIatForPointer( std::uintptr_t uAddr ) {
 
 	if ( !iatBackup ) {
-		iatBackup = std::unique_ptr<std::uintptr_t[ ]>( new std::uintptr_t[ IatSize / sizeof( std::uintptr_t ) + 1 ] {} );
+		iatBackup = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ IatSize + 8 ] {} );
 		if ( !iatBackup ) {
 			return 0;
 		}
@@ -304,10 +304,44 @@ std::uintptr_t IATReferenceScan::lookUpIatForPointer( std::uintptr_t uAddr ) {
 		}
 	}
 
-	for ( std::size_t i = 0; i < IatSize / sizeof( std::uintptr_t ); ++i ) {
-		if ( iatBackup[ i ] == uAddr ) {
-			return reinterpret_cast<std::uintptr_t>( &iatBackup[ i ] ) - reinterpret_cast<std::uintptr_t>( iatBackup.get( ) ) + IatAddressVA;
+	std::size_t szTotal = IatSize / sizeof( std::uintptr_t );
+
+#ifdef WIN64
+	if ( !ProcessAccessHelp::is64BitProcess ) {
+		szTotal = IatSize / sizeof( std::uint32_t );
+	}
+#endif // WIN64
+
+
+	for ( std::size_t i = 0; i < szTotal; ++i ) {
+
+#ifdef WIN64
+		std::uintptr_t uTableEntry = 0;
+		if ( !ProcessAccessHelp::is64BitProcess ) {
+			auto pTable = reinterpret_cast<std::uint32_t*>( iatBackup.get( ) );
+			if ( pTable[ i ] == uAddr ) {
+				uTableEntry = reinterpret_cast<std::uintptr_t>( &pTable[ i ] );
+			}
 		}
+		else
+		{
+			auto pTable = reinterpret_cast<std::uintptr_t*>( iatBackup.get( ) );
+			if ( pTable[ i ] == uAddr ) {
+				uTableEntry = reinterpret_cast<std::uintptr_t>( &pTable[ i ] );
+			}
+		}
+
+		if ( uTableEntry )
+		{
+			return uTableEntry - reinterpret_cast<std::uintptr_t>( iatBackup.get( ) ) + IatAddressVA;
+		}
+#else
+		auto pTable = reinterpret_cast<std::uintptr_t*>( iatBackup.get( ) );
+		if ( pTable[i] == uAddr ) {
+			return reinterpret_cast<std::uintptr_t>( &pTable[ i ] ) - reinterpret_cast<std::uintptr_t>( iatBackup.get( ) ) + IatAddressVA;
+		}
+#endif // WIN64
+
 	}
 
 	return 0;
@@ -625,14 +659,23 @@ std::uint32_t IATReferenceScan::addAdditionalApisToList( ) {
 
 				currentRef.uTargetPointer = uIatAddy;
 
-				auto* apiInfo = apiReader->getApiByVirtualAddress( currentRef.uTargetAddressInIat, &isSuspect );
+				auto* pApiInfo = apiReader->getApiByVirtualAddress( currentRef.uTargetAddressInIat, &isSuspect );
 
-				apiReader->addFoundApiToModuleList( uIatAddy, apiInfo, true, isSuspect );
+				apiReader->addFoundApiToModuleList( uIatAddy, pApiInfo, true, isSuspect );
 			}
 		}
 
-		uIatAddy += sizeof( std::uintptr_t );
-		uNewIatSize += sizeof( std::uintptr_t );
+		uIatAddy += 
+#ifdef WIN64
+		( !ProcessAccessHelp::is64BitProcess ) ? sizeof( std::uint32_t ) :
+#endif // WIN64
+			sizeof( std::uintptr_t ) ;
+
+		uNewIatSize += 
+#ifdef WIN64
+			( !ProcessAccessHelp::is64BitProcess ) ? sizeof( std::uint32_t ) :
+#endif // WIN64
+			sizeof( std::uintptr_t );
 	}
 
 	return uNewIatSize;

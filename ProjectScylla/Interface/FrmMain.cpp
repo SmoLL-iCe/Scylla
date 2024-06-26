@@ -125,7 +125,16 @@ void FrameControls( glWindow* instance )
                 {
                     for ( auto& pModuleInfo : vModuleList )
                     {
-                        auto strFmt = std::format( "{}", wcharToString( pModuleInfo.getFilename( ) ) );
+                        auto& vReaderModuleList = scyllaCtx.getApiReader( )->vModuleList;
+
+                        auto itReaderModule  = std::find_if( vReaderModuleList.begin( ), vReaderModuleList.end( ), [&] ( ModuleInfo& m_Module ) { 
+                            return m_Module.uModBase == pModuleInfo.uModBase; 
+                            } 
+                        );
+
+                        auto ApiListSize = ( itReaderModule != vReaderModuleList.end( ) ) ? itReaderModule->vApiList.size( ) : 0;
+
+                        auto strFmt = std::format( "{} - ({})", wcharToString( pModuleInfo.getFilename( ) ), ApiListSize );
 
                         bool is_selected = ( currentModule.uModBase != 0 ) ? ( currentModule.uModBase == pModuleInfo.uModBase ) : false;
 
@@ -280,15 +289,15 @@ void FrameControls( glWindow* instance )
 
     if ( bOnce )
     {
-
         //  auto future = std::async( std::launch::async, &ScyllaContext::setProcessById, &scyllaCtx, GetCurrentProcessId( ) );
         std::thread( [&]( )
             {
 
                 ProcessAccessHelp::getProcessModules( GetCurrentProcess( ), ProcessAccessHelp::vOwnModuleList );
 
-                scyllaCtx.setProcessById( GetCurrentProcessId( ) );
+                //scyllaCtx.setProcessById( GetCurrentProcessId( ) );
                 //scyllaCtx.setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
+                scyllaCtx.setProcessById( ProcessAccessHelp::getProcessByName( L"export32.exe" ) );
                 scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
 
             } ).detach( );

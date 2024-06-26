@@ -178,41 +178,16 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule ) {
 
 bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t uModuleSize, const std::wstring& strModulePath ) {
 
-	//ProcessAccessHelp::selectedModule = nullptr;
-
 	if ( !ProcessAccessHelp::hProcess )
 		return false;
 
 	Logs( "%s setTargetModule %ls\n", __FUNCTION__, strModulePath.c_str( ) );
-
-	//m_processPtr.uImageSize = (std::uint32_t)ProcessAccessHelp::uTargetSizeOfImage;
 
 	if ( ProcessAccessHelp::vModuleList.empty( ) )
 	{
 		Logs( "%s failed to list modules\n", __FUNCTION__ );
 		return false;
 	}
-
-
-	//std::unique_ptr<std::uint8_t[ ]> pModuleHeaders( new std::uint8_t[ 0x1000 ] );
-
-	//if ( !ProcessAccessHelp::readMemoryFromProcess( uBaseModule, 0x1000, pModuleHeaders.get( ) ) )
-	//	return false;
-
-	//IMAGE_DOS_HEADER* pDosHeader = reinterpret_cast<IMAGE_DOS_HEADER*>( pModuleHeaders.get( ) );
-
-	//if ( pDosHeader->e_magic != IMAGE_DOS_SIGNATURE )
-	//	return false;
-
-	//IMAGE_NT_HEADERS* pNtHeaders = reinterpret_cast<IMAGE_NT_HEADERS*>( pModuleHeaders.get( ) + pDosHeader->e_lfanew );
-
-	//if ( pNtHeaders->Signature != IMAGE_NT_SIGNATURE )
-	//	return false;
-
-	//if ( !uModuleSize )
-	//	uModuleSize = pNtHeaders->OptionalHeader.SizeOfImage;
-
-	//m_entrypoint = uBaseModule + pNtHeaders->OptionalHeader.AddressOfEntryPoint;
 
 	if ( m_processPtr.uImageBase != uBaseModule )
 	{
@@ -221,17 +196,7 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 		ProcessAccessHelp::uTargetSizeOfImage = uModuleSize ;
 
 		m_strTargetFilePath = strModulePath;
-
-		//if ( !strModulePath.empty( ) )
-		//{
-		//	std::memcpy(
-		//		ProcessAccessHelp::selectedModule->pModulePath,
-		//		strModulePath.c_str( ),
-		//		min( strModulePath.size( ) * 2, sizeof( ProcessAccessHelp::selectedModule->pModulePath ) ) );
-		//}
 	}
-
-	//m_strTargetFilePath = ProcessAccessHelp::selectedModule->pModulePath;
 
 	getPePreInfo( );
 
@@ -439,7 +404,7 @@ void ScyllaContext::dumpFixActionHandler( )
 
 	if ( Config::IAT_FIX_AND_OEP_FIX )
 	{
-		importRebuild.setEntryPointRva( (std::uint32_t)( m_entrypoint - ProcessAccessHelp::uTargetImageBase ) );
+		importRebuild.setEntryPointRva( static_cast<std::uint32_t>( m_entrypoint - ProcessAccessHelp::uTargetImageBase ) );
 	}
 
 	if ( Config::OriginalFirstThunk_SUPPORT )
@@ -579,7 +544,7 @@ void ScyllaContext::getImportsActionHandler( )
 		m_iatReferenceScan.ScanForDirectImports = true;
 		m_iatReferenceScan.ScanForNormalImports = false;
 		m_iatReferenceScan.apiReader = &m_apiReader;
-		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, (std::uint32_t)ProcessAccessHelp::uTargetSizeOfImage, m_addressIAT, m_sizeIAT );
+		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), m_addressIAT, m_sizeIAT );
 
 		Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, m_iatReferenceScan.numberOfFoundDirectImports( ), m_iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
 
@@ -658,4 +623,8 @@ void ScyllaContext::setDefaultFolder( const std::wstring& strNewFolder ) {
 ImportsHandling* ScyllaContext::getImportsHandling( )
 {
 	return &m_importsHandling;
+}
+
+ApiReader* ScyllaContext::getApiReader( ) {
+	return &m_apiReader;
 }

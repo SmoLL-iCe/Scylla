@@ -47,18 +47,22 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 {
 	pModule->parsing = true;
 
-	readExportTableAlwaysFromDisk = false;
-
+	//readExportTableAlwaysFromDisk = false;
 
 	if ( isWinSxSModule( pModule ) || ( readExportTableAlwaysFromDisk && !isModuleLoadedInOwnProcess( pModule ) ) )
 	{
 		parseModuleWithMapping( pModule );
 	}
-	else if ( isModuleLoadedInOwnProcess( pModule ) )
+	else 
+	if ( 
+#ifdef WIN64
+		ProcessAccessHelp::is64BitProcess &&
+#endif	
+		isModuleLoadedInOwnProcess( pModule ) )
 	{
 		parseModuleWithOwnProcess( pModule );
 	}
-	else
+	else 
 	{
 		parseModuleWithProcess( pModule );
 	}
@@ -127,7 +131,6 @@ void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>
 		return;
 	}
 
-	PIMAGE_NT_HEADERS pNtHeader = peParser->getCurrentNtHeader( );
 	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
 	std::uintptr_t uDeltaAddress = reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) );
 
@@ -144,11 +147,11 @@ void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>
 		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
 		std::uintptr_t VA = RVA + pModule->uModBase;
 
-		LOGS( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S, pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
+		//printf( "parseExportTable :: api %s uOrdinal %d imagebase " PRINTF_DWORD_PTR_FULL_S " RVA " PRINTF_DWORD_PTR_FULL_S " VA " PRINTF_DWORD_PTR_FULL_S "\n", pFuncName, uOrdinal, pModule->uModBase, RVA, VA );
 
 		if ( !isApiBlacklisted( pFuncName ) )
 		{
-			if ( !isApiForwarded( RVA, pNtHeader ) )
+			if ( !peParser->isApiForwarded( RVA ) )
 			{
 				addApi( pFuncName, i, uOrdinal, VA, RVA, false, pModule );
 			}
@@ -179,7 +182,7 @@ void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>
 				std::uintptr_t RVA = pAddressOfFuncs[ i ];
 				std::uintptr_t VA = RVA + pModule->uModBase;
 
-				if ( !isApiForwarded( RVA, pNtHeader ) )
+				if ( !peParser->isApiForwarded( RVA ) )
 				{
 					addApiWithoutName( uOrdinal, VA, RVA, false, pModule );
 				}
@@ -232,16 +235,14 @@ void ApiReader::handleForwardedApi( std::uintptr_t uVaStringPointer, const char*
 			hModTemp = LoadLibraryExA( strDllName.c_str( ), nullptr, DONT_RESOLVE_DLL_REFERENCES );
 		}
 
-		if ( !hModTemp ) {
+		if ( hModTemp ) {
+			FARPROC pAddy = uOrdinal ? GetProcAddress( hModTemp, reinterpret_cast<LPCSTR>( uOrdinal ) ) : GetProcAddress( hModTemp, strSearchFunctionName.c_str( ) );
+
+			if ( pAddy ) {
+				addApi( pFuncNameParent, 0, uOrdinalParent, reinterpret_cast<std::uintptr_t>( pAddy ), reinterpret_cast<std::uintptr_t>( pAddy ) - reinterpret_cast<std::uintptr_t>( hModTemp ), true, pModuleParent );
+			}
 			return;
 		}
-
-		FARPROC pAddy = uOrdinal ? GetProcAddress( hModTemp, reinterpret_cast<LPCSTR>( uOrdinal ) ) : GetProcAddress( hModTemp, strSearchFunctionName.c_str( ) );
-
-		if ( pAddy ) {
-			addApi( pFuncNameParent, 0, uOrdinalParent, reinterpret_cast<std::uintptr_t>( pAddy ), reinterpret_cast<std::uintptr_t>( pAddy ) - reinterpret_cast<std::uintptr_t>( hModTemp ), true, pModuleParent );
-		}
-		return;
 	}
 
 	strDllName += ".dll";
@@ -420,30 +421,28 @@ bool ApiReader::isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader ) {
 
 void ApiReader::findApiInProcess( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
-	std::unique_ptr<std::uint8_t[ ]> pBufferHeader = getHeaderFromProcess( pModule );
+	std::unique_ptr<PeParser> peParser = std::make_unique<PeParser>( );
 
-	if ( !pBufferHeader )
+	if ( !peParser->initializeFromRemoteModule( pModule->uModBase, pModule->uModBaseSize ) )
+	{
+		LOGS( "parseModuleWithProcess :: Error initializing from remote module %ls", pModule->pModulePath );
+		return;
+	}
+
+	if ( !peParser->isValidExportTable( ) )
 		return;
 
-	auto pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pBufferHeader.get( ) );
-	auto pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>( reinterpret_cast<std::uintptr_t>( pBufferHeader.get( ) ) + pDosHeader->e_lfanew );
-
-	if ( isPeAndExportTableValid( pNtHeader ) )
-	{
-		std::unique_ptr<std::uint8_t[ ]> pBufferExportTable = getExportTableFromProcess( pModule, pNtHeader );
-
-		if ( pBufferExportTable )
-		{
-			findApiInExportTable( pModule, reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>( pBufferExportTable.get( ) ),
-				reinterpret_cast<std::uintptr_t>( pBufferExportTable.get( ) ) -
-				pNtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress,
+	findApiInExportTable( pModule, peParser,
 				pSearchFunctionName, uOrdinal, pVaApi, pRvaApi );
-		}
-	}
 }
 
-bool ApiReader::findApiInExportTable( ModuleInfo* pModule, PIMAGE_EXPORT_DIRECTORY pExportDir, std::uintptr_t uDeltaAddress, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
+bool ApiReader::findApiInExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
+	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
+	
+	std::uintptr_t uDeltaAddress = reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) );
+
+
 	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
 	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
 	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
@@ -641,7 +640,25 @@ void ApiReader::readAndParseIAT( std::uintptr_t uAddressIAT, std::uint32_t uSize
 
 void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, std::size_t szSize )
 {
+#ifdef WIN64
+	std::vector<std::uintptr_t> iatSpan{};
+
+	if ( ProcessAccessHelp::is64BitProcess )
+	{
+		iatSpan.assign( reinterpret_cast<std::uintptr_t*>( pIatBuffer ), reinterpret_cast<std::uintptr_t*>( pIatBuffer ) + szSize / sizeof( std::uintptr_t ) );
+	}
+	else
+	{
+		std::span<std::uint32_t> iatSpan32( reinterpret_cast<std::uint32_t*>( pIatBuffer ), szSize / sizeof( std::uint32_t ) );
+
+		for ( auto& uAddress32 : iatSpan32 ) 
+			iatSpan.push_back( uAddress32 );
+	}
+
+#else
+
 	std::span<std::uintptr_t> iatSpan( reinterpret_cast<std::uintptr_t*>( pIatBuffer ), szSize / sizeof( std::uintptr_t ) );
+#endif // WIN64
 
 	ModuleInfo* pModule = nullptr;
 	bool isSuspect = false;

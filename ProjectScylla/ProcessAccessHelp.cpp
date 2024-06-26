@@ -137,7 +137,7 @@ bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, st
 
 bool ProcessAccessHelp::writeMemoryToProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
 {
-	std::size_t lpNumberOfBytesWritten = 0;
+	SIZE_T szNumberOfBytesWritten = 0;
 
 	if ( !hProcess )
 	{
@@ -146,12 +146,12 @@ bool ProcessAccessHelp::writeMemoryToProcess( std::uintptr_t uAddress, std::size
 		return false;
 	}
 
-	return ( ApiTools::WriteProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesWritten ) != FALSE );
+	return ( ApiTools::WriteProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesWritten ) != FALSE );
 }
 
 bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
 {
-	std::size_t lpNumberOfBytesRead = 0;
+	SIZE_T szNumberOfBytesRead = 0;
 	DWORD dwProtect = 0;
 	bool returnValue = false;
 
@@ -161,7 +161,7 @@ bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::siz
 		return false;
 	}
 
-	if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesRead ) )
+	if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
 	{
 		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 
@@ -172,7 +172,7 @@ bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::siz
 		}
 		else
 		{
-			if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &lpNumberOfBytesRead ) )
+			if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
 			{
 				LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 				return false;
@@ -185,9 +185,9 @@ bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::siz
 		returnValue = true;
 	}
 
-	if ( returnValue && szSize != lpNumberOfBytesRead )
+	if ( returnValue && szSize != szNumberOfBytesRead )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", lpNumberOfBytesRead, szSize );
+		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", szNumberOfBytesRead, szSize );
 		return false;
 	}
 
@@ -715,9 +715,9 @@ std::size_t ProcessAccessHelp::getSizeOfImageProcessNative( HANDLE processHandle
 {
 	MEMORY_REGION_INFORMATION memRegion = { 0 };
 
-	std::size_t retLen = 0;
+	SIZE_T szRetLen = 0;
 
 	return ( ApiTools::QueryVirtualMemory( processHandle, reinterpret_cast<PVOID>( uModuleBase ),
-		MemoryRegionInformation, &memRegion, sizeof( MEMORY_REGION_INFORMATION ), &retLen ) == 0ul )
+		MemoryRegionInformation, &memRegion, sizeof( MEMORY_REGION_INFORMATION ), &szRetLen ) == 0ul )
 		? memRegion.RegionSize : 0;
 }
