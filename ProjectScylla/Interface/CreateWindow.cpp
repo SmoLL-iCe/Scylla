@@ -2,6 +2,8 @@
 #include "Thirdparty/ImGui/imgui.h"
 #include "Thirdparty/ImGui/imgui_impl_glfw.h"
 #include "Thirdparty/ImGui/imgui_impl_opengl3.h"
+#include "Thirdparty/FontAwesome/Font_Awesome_6_Free_Solid_900_otf.h"
+#include "Thirdparty/pivodef_ttf.h"
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -17,7 +19,7 @@
 using namespace std::chrono_literals;
 
 constexpr auto ICON_MIN_FA = 0xe000;
-constexpr auto ICON_MAX_FA = 0xf300;
+constexpr auto ICON_MAX_FA = 0xff00;
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -55,7 +57,8 @@ void glWindow::create( )
     std::this_thread::sleep_for( 1000ms );
 }
 
-inline static ImFont* addFontFromData( const void* pData, int const nSize, const char* pName, float const fSizePx, const ImWchar* pRanges = nullptr )
+static
+ImFont* addFontFromData( void* pData, int const nSize, const char* pName, float const fSizePx, const ImWchar* pRanges = nullptr )
 {
     auto font_cfg           = ImFontConfig( );
     font_cfg.OversampleH    = font_cfg.OversampleV = 1;
@@ -68,12 +71,15 @@ inline static ImFont* addFontFromData( const void* pData, int const nSize, const
         font_cfg.SizePixels = fSizePx;
 
     io.IniFilename = ""; //"xxx__xx";//aquivo de config
-    return io.Fonts->AddFontFromMemoryCompressedTTF( pData, nSize, font_cfg.SizePixels, &font_cfg, pRanges );
+    return io.Fonts->AddFontFromMemoryTTF( pData, nSize, font_cfg.SizePixels, &font_cfg, pRanges );
 }
 
-std::vector<ImFont*> glWindow::getFontsList( ) const
+ImFont* glWindow::getFont( int index ) const
 {
-    return m_vFonts;
+    if ( m_vFonts.size( ) < index )
+        return nullptr;
+
+    return m_vFonts[ index ];
 }
 
 void cursorPositionCallback( GLFWwindow* pWindow, double dPosX, double dPosY );
@@ -151,6 +157,18 @@ void glWindow::routine( )
     ImGui_ImplGlfw_InitForOpenGL( m_pWindow, true );
 
     ImGui_ImplOpenGL3_Init( glsl_version );
+
+
+    ImGuiIO& io = ImGui::GetIO( ); (void)io;
+
+    m_vFonts.push_back(
+        io.Fonts->AddFontFromMemoryTTF( pivodef_ttf, sizeof( pivodef_ttf ), 14.0f )
+    );
+
+    static ImWchar iconRanges[ ] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    m_vFonts.push_back( 
+        addFontFromData( Font_Awesome_6_Free_Solid_900_otf, sizeof( Font_Awesome_6_Free_Solid_900_otf ), "FontAwesome", 24.0f, iconRanges )
+    );
 
     while ( !glfwWindowShouldClose( m_pWindow ) )
     {

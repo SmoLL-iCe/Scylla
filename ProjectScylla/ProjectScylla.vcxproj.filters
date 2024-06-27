@@ -146,6 +146,9 @@
     <ClCompile Include="Tools\Utils.cpp">
       <Filter>Tools</Filter>
     </ClCompile>
+    <ClCompile Include="Interface\imgui_custom.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="diStorm\include\distorm.h">
@@ -276,6 +279,9 @@
     </ClInclude>
     <ClInclude Include="Tools\Utils.h">
       <Filter>Tools</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\imgui_custom.h">
+      <Filter>Interface</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

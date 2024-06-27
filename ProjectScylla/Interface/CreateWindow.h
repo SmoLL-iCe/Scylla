@@ -38,7 +38,6 @@ public:
 
 	static glWindow* i( );
 
-
 	float m_fTop = 0;
 
 	float m_fLeft = 0;
@@ -71,5 +70,5 @@ public:
 
 	void goodbye( );
 
-	std::vector<ImFont*> getFontsList( ) const;
+	ImFont* getFont( int index ) const;
 };

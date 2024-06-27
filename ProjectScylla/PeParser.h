@@ -109,6 +109,7 @@ public:
 	PIMAGE_EXPORT_DIRECTORY getExportData( );
 
 	std::uint8_t* getDataPE( );
+	std::size_t getDataPESize( );
 protected:
 	bool getImageData( const std::size_t szSize = 0 );
 

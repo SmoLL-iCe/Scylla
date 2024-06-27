@@ -1529,6 +1529,10 @@ std::uint8_t* PeParser::getDataPE( ) {
 	return pImageData;
 }
 
+std::size_t PeParser::getDataPESize( ) {
+	return szImageDataSize;
+}
+
 PIMAGE_EXPORT_DIRECTORY PeParser::getExportData( ) {
 
 	if ( !pImageData || !szImageDataSize )

@@ -131,17 +131,34 @@ void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>
 	}
 
 	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
+
+	if ( 
+		pExportDir->AddressOfFunctions > peParser->getDataPESize( ) 
+		|| pExportDir->AddressOfNames > peParser->getDataPESize( )
+		|| pExportDir->AddressOfNameOrdinals > peParser->getDataPESize( )
+		)
+	{
+		LOGS( "parseExportTable :: AddressOfFunctions/AddressOfNames/AddressOfNameOrdinals is invalid %ls", pModule->pModulePath );
+		return;
+	}
+
 	std::uintptr_t uDeltaAddress = reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) );
 
 	auto pAddressOfFuncs = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfFunctions ) + uDeltaAddress );
 	auto pAddressOfNames = reinterpret_cast<std::uint32_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNames ) + uDeltaAddress );
 	auto pAddressOfNameOrdinals = reinterpret_cast<std::uint16_t*>( static_cast<std::uintptr_t>( pExportDir->AddressOfNameOrdinals ) + uDeltaAddress );
 
+
+
 	LOGS( "parseExportTable :: pModule %ls NumberOfNames %X", pModule->pModulePath, pExportDir->NumberOfNames );
 
 	for ( std::uint16_t i = 0; i < pExportDir->NumberOfNames; i++ )
 	{
-		auto pFuncName = reinterpret_cast<char*>( pAddressOfNames[ i ] + uDeltaAddress );
+		auto uAddrNameOffset = pAddressOfNames[ i ];
+
+		auto pFuncName = reinterpret_cast<char*>( uAddrNameOffset + uDeltaAddress );
+
+
 		std::uint16_t uOrdinal = static_cast<std::uint16_t>( pAddressOfNameOrdinals[ i ] + pExportDir->Base );
 		std::uintptr_t RVA = pAddressOfFuncs[ pAddressOfNameOrdinals[ i ] ];
 		std::uintptr_t VA = RVA + pModule->uModBase;
