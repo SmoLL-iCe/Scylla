@@ -18,7 +18,7 @@
     ))
 
 template<typename T>
-bool IsValidPtr( T p )
+SIZE_T IsValidPtr( T p )
 {
 	DWORD Readable = ( PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY );
 	DWORD Writable = ( PAGE_EXECUTE_READWRITE | PAGE_READWRITE );
@@ -26,7 +26,10 @@ bool IsValidPtr( T p )
 
 	MEMORY_BASIC_INFORMATION mbi = { };
 	mbi.Protect = 0;
-	return ( VirtualQuery( (void*)p, &mbi, sizeof mbi ) && ( mbi.Protect & Forbidden ) == 0 && ( mbi.Protect & Readable ) != 0 );
+
+	return ( VirtualQuery( (void*)p, &mbi, sizeof mbi ) 
+		&& ( mbi.Protect & Forbidden ) == 0 
+		&& ( mbi.Protect & Readable ) != 0 ) ? mbi.RegionSize : 0;
 }
 
 PeParser::PeParser( )
@@ -151,6 +154,29 @@ bool PeParser::initializeFromRemoteModule( const std::uintptr_t uModuleBase, con
 	return bResult;
 }
 
+static
+std::size_t getDataSizeValidation( void* pData, std::size_t szData ) {
+
+	size_t szImageSize = 0;
+
+	const std::uintptr_t uTotalPages = ( szData / 0x1000 ) + 1;
+
+	for ( std::uintptr_t i = 0; i < uTotalPages; i++ )
+	{
+		const std::uint32_t uReadSize = ( i == ( uTotalPages - 1 ) ) ? ( szData % 0x1000 ) : 0x1000;
+
+		auto RegionSize = IsValidPtr( reinterpret_cast<uint8_t*>( pData ) + ( i * 0x1000 ) );
+		if ( !RegionSize )
+		{
+			break;
+		}
+
+		szImageSize += uReadSize;
+	}
+
+	return szImageSize;
+}
+
 bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData ) {
 
 	PIMAGE_DOS_HEADER pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>( pData );
@@ -175,19 +201,7 @@ bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData )
 
 	szData = std::max( szData, szImageFromHeaders );
 
-	size_t szImageSize = 0;
-
-	const std::uintptr_t uTotalPages = ( szData / 0x1000 ) + 1;
-
-	for ( std::uintptr_t i = 0; i < uTotalPages; i++ )
-	{
-		const std::uint32_t uReadSize = ( i == ( uTotalPages - 1 ) ) ? ( szData % 0x1000 ) : 0x1000;
-
-		if ( IsValidPtr( pData + uReadSize ) ) {
-			szImageSize += uReadSize;
-			break;
-		}
-	}
+	size_t szImageSize = getDataSizeValidation( pData, szData );
 
 	vImageData.insert( vImageData.begin( ), pData, pData + szImageSize );
 
@@ -220,7 +234,7 @@ bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData )
 	return bResult;
 }
 
-bool PeParser::initializeFromMapped( void* pModule ) {
+bool PeParser::initializeFromMapped( void* pModule, const std::size_t szModuleSize ) {
 
 	initClass( );
 
@@ -240,12 +254,15 @@ bool PeParser::initializeFromMapped( void* pModule ) {
 		return false;
 	}
 
-	size_t szImageFromHeaders = ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC ) ?
+	std::uint32_t uImageSizeFromHeaders = ( pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC ) ?
 		reinterpret_cast<PIMAGE_NT_HEADERS64>( pNTHeader32 )->OptionalHeader.SizeOfImage :
 		pNTHeader32->OptionalHeader.SizeOfImage;
 
 	pImageData = pData;
-	szImageDataSize = szImageFromHeaders;
+
+	szImageDataSize = std::max( uImageSizeFromHeaders, static_cast<std::uint32_t>( szModuleSize ) );
+
+	szImageDataSize = getDataSizeValidation( pData, szImageDataSize );
 
 	if ( !readPeHeaderFromData( ) )
 	{
@@ -282,8 +299,7 @@ bool PeParser::initializeWithMapping( const wchar_t* pFilePath ) {
 	if ( pFileMappingData == nullptr )
 		return false;
 
-
-	auto bResult = initializeFromMapped( pFileMappingData );
+	auto bResult = initializeFromMapped( pFileMappingData, szFileSize );
 
 	if ( !bResult )
 	{

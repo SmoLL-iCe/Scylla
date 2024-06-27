@@ -33,6 +33,7 @@ public:
 	std::uint32_t m_sizeIAT;
 	ImportsHandling* getImportsHandling( );
 	ApiReader* getApiReader( );
+	Process * getCurrentProcess( );
 private:
 	void getPePreInfo( );
 	void checkSuspendProcess( );

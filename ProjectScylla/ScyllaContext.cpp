@@ -628,3 +628,7 @@ ImportsHandling* ScyllaContext::getImportsHandling( )
 ApiReader* ScyllaContext::getApiReader( ) {
 	return &m_apiReader;
 }
+
+Process* ScyllaContext::getCurrentProcess( ) {
+	return &m_processPtr;
+}

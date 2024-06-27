@@ -51,7 +51,7 @@ public:
 	bool initializeFromProcess( const std::uintptr_t uModuleBase, bool bReadSectionHeaders );
 	bool initializeFromRemoteModule( const std::uintptr_t uModuleBase, const std::size_t szModuleSize = 0 );
 	bool initializeFromCopyData( std::uint8_t* pData, std::size_t szData );
-	bool initializeFromMapped( void* pModule );
+	bool initializeFromMapped( void* pModule, const std::size_t szModuleSize = 0 );
 	bool initializeWithMapping( const wchar_t* pFilePath );
 
 

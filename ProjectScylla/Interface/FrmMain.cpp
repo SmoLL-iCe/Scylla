@@ -34,9 +34,13 @@ Process currentProcess = {};
 ModuleInfo currentModule = {};
 
 static 
-void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVec2 Size ) {
+void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVec2 Size, bool bWithBeginChild ) {
 
-    if ( ImGui::BeginChild( "##filter", Size, true ) )
+    if ( bWithBeginChild )
+    {
+        ImGui::BeginChild( "##filter", Size, true );
+    }
+    ImGui::BeginGroup( );
     {
         char pFilter[ 256 ] = { 0 };
         auto isEmpty = outFilter.empty( );
@@ -45,22 +49,26 @@ void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVe
         	strcpy_s( pFilter, outFilter.c_str( ) );
         }
 
-        ImGui::PushItemWidth( Size.x - ( ImGui::GetStyle( ).WindowPadding.x * 2.f ) );
+        auto xPadding = ( ImGui::GetStyle( ).WindowPadding.x * ( bWithBeginChild ? 2.f : 0.f ) );
+        ImGui::PushItemWidth( Size.x - xPadding );
         ImGui::InputTextWithHint( "##InputFilter", filterTitle.c_str( ), pFilter, sizeof( pFilter ) );
         ImGui::PopItemWidth( );
 
-        ImGui::SameLine( Size.x - ( ImGui::GetStyle( ).WindowPadding.x * 2.f ) - 14.f );
+        ImGui::SameLine( Size.x - xPadding - 22.f );
         ImGui::PushFont( ImGui::GetIO( ).Fonts->Fonts[ 1 ] );
         ImGui::SetWindowFontScale( 0.6f );
         ImGui::Text( PCHR( Search ) );
         ImGui::SetWindowFontScale( 1.f );
         ImGui::PopFont( );
 
-
         outFilter = pFilter;
-
-        ImGui::EndChild( );
     }
+    ImGui::EndGroup( );
+
+    if ( bWithBeginChild )
+    {
+		ImGui::EndChild( );
+	}
 }
 
 static 
@@ -75,7 +83,7 @@ void ProcessesTab( ) {
 
     static std::string strFilter = "";
 
-    DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ) );
+    DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), true );
 
     fHeightFilter += ( ImGui::GetStyle( ).WindowPadding.y );
 
@@ -123,7 +131,7 @@ void ProcessesTab( ) {
 
                 if ( isSelected )
                 {
-                    for ( size_t xx = 0; xx < 3; xx++ ) {
+                    for ( int32_t xx = 0; xx < 3; xx++ ) {
                         auto col = ImGui::GetStyleColorVec4( ImGuiCol_ButtonHovered + xx );
 
                         col.x += 0.6f;
@@ -146,19 +154,33 @@ void ProcessesTab( ) {
                             {
                                 ProcessAccessHelp::vModuleList.clear( );
 
-                                scyllaCtx->setProcessById( ProcessInfo.PID );
-
-                                scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
-
-                                if ( !ProcessAccessHelp::vModuleList.empty( ) )
+                                scyllaCtx->getApiReader( )->mpApiList.clear( );
+                                if ( scyllaCtx->getApiReader( )->mpModuleThunkList )
                                 {
-                                    currentModule = ProcessAccessHelp::vModuleList[ 0 ];
+                                    scyllaCtx->getApiReader( )->mpModuleThunkList->clear( );
+                                    scyllaCtx->getApiReader( )->mpModuleThunkList = nullptr;
                                 }
 
-                                currentProcess = ProcessInfo;
+                                scyllaCtx->getApiReader( )->vModuleList.clear( );
 
-                                ImGui::SetActiveTabIndex( 1 );
+                                scyllaCtx->getImportsHandling( )->vModuleList.clear( );
+                                scyllaCtx->getImportsHandling( )->mpModuleListNew.clear( );
 
+                                if ( scyllaCtx->setProcessById( ProcessInfo.PID ) == 0 ) { 
+
+                                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+
+                                    if ( !ProcessAccessHelp::vModuleList.empty( ) )
+                                    {
+                                        currentModule = ProcessAccessHelp::vModuleList[ 0 ];
+                                    }
+
+                                    scyllaCtx->getImportsActionHandler( );
+
+                                    currentProcess = ProcessInfo;
+
+                                    ImGui::SetActiveTabIndex( 1 );
+                                }
 
                                 bWaitProcess = false;
 
@@ -203,7 +225,7 @@ bool ModulesTab( ) {
 
     static std::string strFilter = "";
 
-    DisplayFilter( "Search module name", strFilter, ImVec2( fInnerWidth, fHeightFilter ) );
+    DisplayFilter( "Search module name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), false );
 
     fHeightFilter += ( ImGui::GetStyle( ).WindowPadding.y );
 
@@ -247,7 +269,7 @@ bool ModulesTab( ) {
 
                 if ( isSelected )
                 {
-                    for ( size_t xx = 0; xx < 3; xx++ ) {
+                    for ( int xx = 0; xx < 3; xx++ ) {
                         auto col = ImGui::GetStyleColorVec4( ImGuiCol_ButtonHovered + xx );
 
                         col.x += 0.6f;
@@ -263,6 +285,8 @@ bool ModulesTab( ) {
 
                     scyllaCtx->setTargetModule( currentModule.uModBase, currentModule.uModBaseSize, currentModule.pModulePath );
 
+                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+
                     ImGui::SetActiveTabIndex( 2 );
                 }
                 ImGui::PopStyleVar( );
@@ -272,39 +296,6 @@ bool ModulesTab( ) {
 
         } );
 
-
-        
-
-        //if ( ImGui::Button( "Dump" ) )
-        //{
-
-        //    std::thread( [ & ]( )
-        //        {
-        //            scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
-        //            scyllaCtx->iatAutosearchActionHandler( );
-        //            scyllaCtx->getImportsActionHandler( );
-
-        //            scyllaCtx->dumpActionHandler( );
-        //        } ).detach( );
-
-        //}
-        //if ( ImGui::BeginChild( "##imports", ImVec2( pWindowInstance->getSize( ).x - 16.f, 300.f ), true ) )
-        //{
-        //    if ( scyllaCtx->getImportsHandling( )->thunkCount( ) )
-        //    {
-        //        ImGui::Text( "IAT: %llX, %lX", (uint64_t)scyllaCtx->m_addressIAT, scyllaCtx->m_sizeIAT );
-        //        ImGui::NewLine( );
-        //        ImGui::Text( "thunkCount: %d, invalid %d, suspect %d",
-        //            scyllaCtx->getImportsHandling( )->thunkCount( ),
-        //            scyllaCtx->getImportsHandling( )->invalidThunkCount( ),
-        //            scyllaCtx->getImportsHandling( )->suspectThunkCount( )
-        //        );
-        //        ImGui::NewLine( );
-
-        //        ImportThree( scyllaCtx );
-        //    }
-        //}
-        //ImGui::EndChild( );
 
     return true;
 }
@@ -326,144 +317,216 @@ bool IatTab( )
         return false;
 	}
 
-    for ( auto& [key, moduleThunk] : scyllaCtx->getImportsHandling( )->vModuleList )
+    float fInnerWidth = ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
+
+    float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
+
+    if ( ImGui::BeginChild( "##imports", ImVec2( fInnerWidth, 70.f ), true ) )
     {
-        std::string strModuleName = "";
-
-        strModuleName = std::format( "{} {} ({})", ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), Utils::wstrToStr( moduleThunk.pModuleName ), moduleThunk.mpThunkList.size( ) );
-
-        if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
+        if ( scyllaCtx->getImportsHandling( )->thunkCount( ) )
         {
-            if ( ImGui::BeginPopupContextItem( strModuleName.c_str( ) ) )
+            ImGui::Text( "IAT: %llX, %lX", (uint64_t)( scyllaCtx->m_addressIAT ), scyllaCtx->m_sizeIAT );
+            ImGui::Text( "thunkCount: %d, invalid %d, suspect %d",
+                scyllaCtx->getImportsHandling( )->thunkCount( ),
+                scyllaCtx->getImportsHandling( )->invalidThunkCount( ),
+                scyllaCtx->getImportsHandling( )->suspectThunkCount( )
+            );
+        }
+    }
+    ImGui::EndChild( );
+
+
+    if ( ImGui::BeginChild( "IAT", ImVec2( fInnerWidth, fInnerHeight - 100.f ), true ) )
+    { 
+        for ( auto& [key, moduleThunk] : scyllaCtx->getImportsHandling( )->vModuleList )
+        {
+            std::string strModuleName = "";
+
+            strModuleName = std::format( "{} {} ({})", ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), Utils::wstrToStr( moduleThunk.pModuleName ), moduleThunk.mpThunkList.size( ) );
+
+            if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
             {
-                if ( ImGui::MenuItem( "Ivalidade" ) )
-                {
-                    scyllaCtx->getImportsHandling( )->invalidateModule( &moduleThunk );
-                }
-
-                if ( ImGui::MenuItem( "Cut Module" ) )
-                {
-                    scyllaCtx->getImportsHandling( )->cutModule( &moduleThunk );
-                    ImGui::EndPopup( );
-                    ImGui::TreePop( );
-                    break; // prevent crash
-
-                }
-
-                ImGui::EndPopup( );
-            }
-
-            for ( auto& [RVA, importThunk] : moduleThunk.mpThunkList )
-            {
-                std::string strFuncName = "";
-
-                strFuncName = std::format( "  {} {}",
-                    ( ( !importThunk.bValid ) ? "[Invalid]" : ( importThunk.bSuspect ? "[Suspect]" : "[OK]" ) ),
-                    importThunk.name );
-
-                ImGui::Text( strFuncName.c_str( ) );
-
-                strFuncName += std::to_string( RVA );
-                if ( ImGui::BeginPopupContextItem( strFuncName.c_str( ) ) )
+                if ( ImGui::BeginPopupContextItem( strModuleName.c_str( ) ) )
                 {
                     if ( ImGui::MenuItem( "Ivalidade" ) )
                     {
-                        printf( "Option 1 %s\n", strFuncName.c_str( ) );
-
-                        scyllaCtx->getImportsHandling( )->invalidateImport( &importThunk );
+                        scyllaCtx->getImportsHandling( )->invalidateModule( &moduleThunk );
                     }
-                    if ( ImGui::MenuItem( "Cut Thunk" ) )
+
+                    if ( ImGui::MenuItem( "Cut Module" ) )
                     {
-                        scyllaCtx->getImportsHandling( )->cutImport( &importThunk );
+                        scyllaCtx->getImportsHandling( )->cutModule( &moduleThunk );
                         ImGui::EndPopup( );
+                        ImGui::TreePop( );
                         break; // prevent crash
-                    }
 
-                    if ( ImGui::BeginMenu( "Options" ) )
-                    {
-                        static size_t nSelectedImport = -1;
-
-                        auto& vImportModule = scyllaCtx->getApiReader( )->vModuleList;
-
-                        auto bValidSelected = ( nSelectedImport != -1 && vImportModule.size( ) > nSelectedImport );
-
-                        std::string strImportModule = ( bValidSelected ) ?
-                            std::format( "{}", Utils::wstrToStr( vImportModule[ nSelectedImport ].getFilename( ) ) ) :
-                            "No module selected";
-
-                        if ( ImGui::BeginCombo( "##importModules", strImportModule.c_str( ) ) )
-                        {
-                            for ( size_t ix = 0; ix < vImportModule.size( ); ix++ )
-                            {
-                                auto& moduleInfo = vImportModule[ ix ];
-
-                                if ( !moduleInfo.vApiList.size( ) )
-                                    continue;
-
-                                if ( ImGui::Selectable( Utils::wstrToStr( moduleInfo.getFilename( ) ).c_str( ), nSelectedImport == ix ) )
-                                {
-                                    nSelectedImport = ix;
-                                }
-
-                                if ( nSelectedImport == ix )
-                                    ImGui::SetItemDefaultFocus( );
-                            }
-
-                            ImGui::EndCombo( );
-                        }
-
-                        if ( bValidSelected ) {
-                            ImGui::BeginChild( "child", ImVec2( 0, 200 ), true );
-
-                            auto& moduleInfo = vImportModule[ nSelectedImport ];
-
-                            for ( auto& apiInfo : moduleInfo.vApiList )
-                            {
-                                auto bClick = false;
-
-                                if ( apiInfo->name[ 0 ] != '\0' )
-                                {
-                                    if ( ImGui::MenuItem( apiInfo->name ) ) {
-                                        bClick = true;
-                                    }
-                                }
-                                else
-                                {
-                                    char buf[ 6 ];
-                                    sprintf_s( buf, "#%04X", apiInfo->uOrdinal );
-                                    if ( ImGui::MenuItem( buf ) ) {
-                                        bClick = true;
-                                    }
-                                }
-
-                                if ( bClick ) {
-
-                                    scyllaCtx->getImportsHandling( )->
-                                        setImport( &importThunk, apiInfo->pModule->getFilename( ),
-                                            apiInfo->name, apiInfo->uOrdinal, apiInfo->uHint, true, apiInfo->isForwarded );
-
-                                    ImGui::EndChild( );
-                                    ImGui::EndMenu( );
-                                    ImGui::EndPopup( );
-                                    ImGui::TreePop( );
-                                    return true;
-                                }
-                            }
-
-                            ImGui::EndChild( );
-                        }
-
-                        ImGui::EndMenu( );
                     }
 
                     ImGui::EndPopup( );
                 }
 
-            }
+                for ( auto& [RVA, importThunk] : moduleThunk.mpThunkList )
+                {
+                    std::string strFuncName = "";
 
-            ImGui::TreePop( );
+                    strFuncName = std::format( "  {} {}",
+                        ( ( !importThunk.bValid ) ? "[Invalid]" : ( importThunk.bSuspect ? "[Suspect]" : "[OK]" ) ),
+                        importThunk.name );
+
+                    ImGui::Text( strFuncName.c_str( ) );
+
+                    strFuncName += std::to_string( RVA );
+                    if ( ImGui::BeginPopupContextItem( strFuncName.c_str( ) ) )
+                    {
+                        if ( ImGui::MenuItem( "Ivalidade" ) )
+                        {
+                            scyllaCtx->getImportsHandling( )->invalidateImport( &importThunk );
+                        }
+
+                        if ( ImGui::MenuItem( "Cut Thunk" ) )
+                        {
+                            scyllaCtx->getImportsHandling( )->cutImport( &importThunk );
+                            ImGui::EndPopup( );
+                            break; // prevent crash
+                        }
+
+                        if ( ImGui::BeginMenu( "Change Thunk" ) )
+                        {
+
+                            float fHeightFilter = 38.f;
+
+                            static std::string strSwapModuleFilter = "";
+
+                            DisplayFilter( "Search module name", strSwapModuleFilter, ImVec2(
+                                ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f ), 
+                                fHeightFilter ), false );
+
+                            static size_t nSelectedImport = -1;
+
+                            auto& vImportModule = scyllaCtx->getApiReader( )->vModuleList;
+
+                            auto bValidSelected = ( nSelectedImport != -1 && vImportModule.size( ) > nSelectedImport );
+
+                            std::string strImportModule = ( bValidSelected ) ?
+                                std::format( "{}", Utils::wstrToStr( vImportModule[ nSelectedImport ].getFilename( ) ) ) :
+                                "No module selected";
+
+                            if ( ImGui::BeginCombo( "##importModules", strImportModule.c_str( ) ) )
+                            {
+                                std::string lowerSwapModuleFilter = Utils::StrToLower( strSwapModuleFilter );
+
+                                for ( size_t ix = 0; ix < vImportModule.size( ); ix++ )
+                                {
+                                    auto& moduleInfo = vImportModule[ ix ];
+
+                                    if ( !moduleInfo.vApiList.size( ) )
+                                        continue;
+
+                                    std::string strModuleName = Utils::wstrToStr( moduleInfo.getFilename( ) );
+
+                                    std::string lowerModuleName = Utils::StrToLower( strModuleName );
+
+                                    if ( !strSwapModuleFilter.empty( ) && lowerModuleName.find( lowerSwapModuleFilter ) == std::string::npos )
+										continue;
+
+                                    if ( ImGui::Selectable( strModuleName.c_str( ), nSelectedImport == ix ) )
+                                    {
+                                        nSelectedImport = ix;
+                                    }
+
+                                    if ( nSelectedImport == ix )
+                                        ImGui::SetItemDefaultFocus( );
+                                }
+
+                                ImGui::EndCombo( );
+                            }
+
+                            if ( bValidSelected ) {
+                                ImGui::BeginChild( "##swapFunctionsName", ImVec2( 0, 200 ), true );
+
+                                static std::string strSwapFunctionName = "";
+
+                                DisplayFilter( "Search function name", strSwapFunctionName, ImVec2(
+                                    ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f ),
+                                    fHeightFilter ), false );
+
+                                std::string lowerSwapFunctionName = Utils::StrToLower( strSwapFunctionName );
+
+                                auto& moduleInfo = vImportModule[ nSelectedImport ];
+
+                                for ( auto& apiInfo : moduleInfo.vApiList )
+                                {
+                                    std::string strFunctionName = "";
+
+                                    if ( apiInfo->name[ 0 ] != '\0' )
+                                    {
+                                        strFunctionName = apiInfo->name;
+                                    }
+                                    else
+                                    {
+                                        char buf[ 6 ];
+                                        sprintf_s( buf, "#%04X", apiInfo->uOrdinal );
+                                        strFunctionName = buf;
+                                    }
+
+                                    std::string lowerFunctionName = Utils::StrToLower( strFunctionName );
+
+                                    if ( !strSwapFunctionName.empty( ) && lowerFunctionName.find( lowerSwapFunctionName ) == std::string::npos )
+										continue;
+
+
+                                    if ( ImGui::MenuItem( strFunctionName.c_str( ) ) ) {
+                                        scyllaCtx->getImportsHandling( )->
+                                            setImport( &importThunk, apiInfo->pModule->getFilename( ),
+                                                apiInfo->name, apiInfo->uOrdinal, apiInfo->uHint, true, apiInfo->isForwarded );
+
+                                        // list modified
+                                        // close all containers
+                                        ImGui::EndChild( );
+                                        ImGui::EndMenu( );
+                                        ImGui::EndPopup( );
+                                        ImGui::TreePop( );
+                                        ImGui::EndChild( );
+                                        return true;
+                                    }
+                                }
+
+                                ImGui::EndChild( );
+                            }
+
+                            ImGui::EndMenu( );
+                        }
+
+                        ImGui::EndPopup( );
+                    }
+
+                }
+
+                ImGui::TreePop( );
+            }
         }
+
+
+    
+        ImGui::EndChild( );
     }
+
+
+
+    if ( ImGui::Button( "Dump" ) )
+    {
+
+        std::thread( [ & ]( )
+            {
+                scyllaCtx->iatAutosearchActionHandler( );
+                scyllaCtx->getImportsActionHandler( );
+
+                scyllaCtx->dumpActionHandler( );
+            } ).detach( );
+
+    }
+
+    
     return true;
 }
 
@@ -589,8 +652,23 @@ void FrameControls( glWindow* pWindowInstance )
 
                 //scyllaCtx->setProcessById( GetCurrentProcessId( ) );
                 //scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
-                scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
-                scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+                auto status = scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
+
+                if ( status == 0 )
+                {
+                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+
+                    if ( !ProcessAccessHelp::vModuleList.empty( ) )
+                    {
+                        currentModule = ProcessAccessHelp::vModuleList[ 0 ];
+                    }
+
+                    scyllaCtx->getImportsActionHandler( );
+
+                    currentProcess = *scyllaCtx->getCurrentProcess( );
+
+                    ImGui::SetActiveTabIndex( 2 );
+                }
 
             } ).detach( );
 
