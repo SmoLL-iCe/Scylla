@@ -539,66 +539,66 @@ void ScyllaContext::getImportsActionHandler( )
 	m_importsHandling.displayAllImports( );
 
 
-	if ( Config::SCAN_DIRECT_IMPORTS )
-	{
-		m_iatReferenceScan.ScanForDirectImports = true;
-		m_iatReferenceScan.ScanForNormalImports = false;
-		m_iatReferenceScan.apiReader = &m_apiReader;
-		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), m_addressIAT, m_sizeIAT );
+	//if ( Config::SCAN_DIRECT_IMPORTS )
+	//{
+	//	m_iatReferenceScan.ScanForDirectImports = true;
+	//	m_iatReferenceScan.ScanForNormalImports = false;
+	//	m_iatReferenceScan.apiReader = &m_apiReader;
+	//	m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), m_addressIAT, m_sizeIAT );
 
-		Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, m_iatReferenceScan.numberOfFoundDirectImports( ), m_iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
+	//	Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, m_iatReferenceScan.numberOfFoundDirectImports( ), m_iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
 
-		if ( m_iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
-		{
-			if ( m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) > 0 )
-			{
-				Logs( "%s DIRECT IMPORTS - Found %d additional api addresses!\n", __FUNCTION__, m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) );
+	//	if ( m_iatReferenceScan.numberOfFoundDirectImports( ) > 0 )
+	//	{
+	//		if ( m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) > 0 )
+	//		{
+	//			Logs( "%s DIRECT IMPORTS - Found %d additional api addresses!\n", __FUNCTION__, m_iatReferenceScan.numberOfDirectImportApisNotInIat( ) );
 
-				std::uint32_t sizeIatNew = m_iatReferenceScan.addAdditionalApisToList( );
+	//			std::uint32_t sizeIatNew = m_iatReferenceScan.addAdditionalApisToList( );
 
-				Logs( "%s DIRECT IMPORTS - Old IAT size 0x%08X new IAT size 0x%08X!\n", __FUNCTION__, m_sizeIAT, sizeIatNew );
+	//			Logs( "%s DIRECT IMPORTS - Old IAT size 0x%08X new IAT size 0x%08X!\n", __FUNCTION__, m_sizeIAT, sizeIatNew );
 
-				m_sizeIAT = sizeIatNew;
+	//			m_sizeIAT = sizeIatNew;
 
-				m_importsHandling.scanAndFixModuleList( );
-				m_importsHandling.displayAllImports( );
-			}
+	//			m_importsHandling.scanAndFixModuleList( );
+	//			m_importsHandling.displayAllImports( );
+	//		}
 
-			m_iatReferenceScan.printDirectImportLog( );
+	//		m_iatReferenceScan.printDirectImportLog( );
 
-			if ( Config::FIX_DIRECT_IMPORTS_NORMAL && ( Config::FIX_DIRECT_IMPORTS_UNIVERSAL == false ) )
-			{
-				int msgboxID = MessageBox( 0,
-					L"Direct Imports found. I can patch only direct imports by JMP/CALL (use universal method if you don't like this) but where is the junk byte?\r\n\r\nYES = After Instruction\r\nNO = Before the Instruction\r\nCancel = Do nothing", L"Information",
-					MB_YESNOCANCEL | MB_ICONINFORMATION );
+	//		if ( Config::FIX_DIRECT_IMPORTS_NORMAL && ( Config::FIX_DIRECT_IMPORTS_UNIVERSAL == false ) )
+	//		{
+	//			int msgboxID = MessageBox( 0,
+	//				L"Direct Imports found. I can patch only direct imports by JMP/CALL (use universal method if you don't like this) but where is the junk byte?\r\n\r\nYES = After Instruction\r\nNO = Before the Instruction\r\nCancel = Do nothing", L"Information",
+	//				MB_YESNOCANCEL | MB_ICONINFORMATION );
 
-				if ( msgboxID != IDCANCEL )
-				{
-					bool isAfter;
-					if ( msgboxID == IDYES )
-					{
-						isAfter = true;
-					}
-					else
-					{
-						isAfter = false;
-					}
+	//			if ( msgboxID != IDCANCEL )
+	//			{
+	//				bool isAfter;
+	//				if ( msgboxID == IDYES )
+	//				{
+	//					isAfter = true;
+	//				}
+	//				else
+	//				{
+	//					isAfter = false;
+	//				}
 
-					m_iatReferenceScan.patchDirectImportsMemory( isAfter );
+	//				m_iatReferenceScan.patchDirectImportsMemory( isAfter );
 
-					Logs( "%s DIRECT IMPORTS - Patched! Please dump target.\n", __FUNCTION__ );
-				}
+	//				Logs( "%s DIRECT IMPORTS - Patched! Please dump target.\n", __FUNCTION__ );
+	//			}
 
-			}
-		}
+	//		}
+	//	}
 
-	}
+	//}
 
 
-	if ( isIATOutsidePeImage( m_addressIAT ) )
-	{
-		Logs( "%s WARNING! IAT is not inside the PE image, requires rebasing!\n", __FUNCTION__ );
-	}
+	//if ( isIATOutsidePeImage( m_addressIAT ) )
+	//{
+	//	Logs( "%s WARNING! IAT is not inside the PE image, requires rebasing!\n", __FUNCTION__ );
+	//}
 
 }
 

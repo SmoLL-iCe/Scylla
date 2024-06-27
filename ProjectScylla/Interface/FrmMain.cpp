@@ -28,6 +28,159 @@ extern "C" __declspec( dllexport ) int MyFunc( long parm1 ) {
 	return 0;
 }
 
+void ImportThree( ScyllaContext& scyllaCtx ) {
+
+    auto wcharToString = [ ]( const wchar_t* wchar ) -> std::string
+        {
+            std::wstring wstr( wchar );
+            return std::string( wstr.begin( ), wstr.end( ) );
+        };
+
+    for ( auto& [key, moduleThunk] : scyllaCtx.getImportsHandling( )->vModuleList )
+    {
+        std::string strModuleName = "";
+
+        strModuleName = std::format( "{} {} ({})", ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), Utils::wstrToStr( moduleThunk.pModuleName ), moduleThunk.mpThunkList.size( ) );
+
+        if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
+        {
+            if ( ImGui::BeginPopupContextItem( strModuleName.c_str( ) ) )
+            {
+                if ( ImGui::MenuItem( "Ivalidade" ) )
+                {
+                    scyllaCtx.getImportsHandling( )->invalidateModule( &moduleThunk );
+                }
+
+                if ( ImGui::MenuItem( "Cut Module" ) )
+                {
+                    scyllaCtx.getImportsHandling( )->cutModule( &moduleThunk );
+                    ImGui::EndPopup( );
+                    ImGui::TreePop( );
+                    break; // prevent crash
+
+                }
+
+                ImGui::EndPopup( );
+            }
+
+            for ( auto& [RVA, importThunk] : moduleThunk.mpThunkList )
+            {
+                std::string strFuncName = "";
+
+                strFuncName = std::format( "  {} {}",
+                    ( ( !importThunk.bValid ) ? "[Invalid]" : ( importThunk.bSuspect ? "[Suspect]" : "[OK]" ) ),
+                    importThunk.name );
+
+                ImGui::Text( strFuncName.c_str( ) );
+
+                strFuncName += std::to_string( RVA );
+                if ( ImGui::BeginPopupContextItem( strFuncName.c_str( ) ) )
+                {
+                    if ( ImGui::MenuItem( "Ivalidade" ) )
+                    {
+                        printf( "Option 1 %s\n", strFuncName.c_str( ) );
+
+                        scyllaCtx.getImportsHandling( )->invalidateImport( &importThunk );
+                    }
+                    if ( ImGui::MenuItem( "Cut Thunk" ) )
+                    {
+                        scyllaCtx.getImportsHandling( )->cutImport( &importThunk );
+                        ImGui::EndPopup( );
+                        break; // prevent crash
+                    }
+
+                    if ( ImGui::BeginMenu( "Options" ) )
+                    {
+                        static size_t nSelectedImport = -1;
+
+                        auto& vImportModule = scyllaCtx.getApiReader( )->vModuleList;
+
+                        auto bValidSelected = ( nSelectedImport != -1 && vImportModule.size( ) > nSelectedImport );
+
+                        std::string strImportModule = ( bValidSelected ) ?
+                            std::format( "{}", wcharToString( vImportModule[ nSelectedImport ].getFilename( ) ) ) :
+                            "No module selected";
+
+                        if ( ImGui::BeginCombo( "##importModules", strImportModule.c_str( ) ) )
+                        {
+                            for ( size_t ix = 0; ix < vImportModule.size( ); ix++ )
+                            {
+                                auto& moduleInfo = vImportModule[ ix ];
+
+                                if ( !moduleInfo.vApiList.size( ) )
+                                    continue;
+
+                                if ( ImGui::Selectable( wcharToString( moduleInfo.getFilename( ) ).c_str( ), nSelectedImport == ix ) )
+                                {
+                                    nSelectedImport = ix;
+                                }
+
+                                if ( nSelectedImport == ix )
+                                    ImGui::SetItemDefaultFocus( );
+                            }
+
+                            ImGui::EndCombo( );
+                        }
+
+                        if ( bValidSelected ) {
+                            ImGui::BeginChild( "child", ImVec2( 0, 200 ), true );
+
+                            auto& moduleInfo = vImportModule[ nSelectedImport ];
+
+                            for ( auto& apiInfo : moduleInfo.vApiList )
+                            {
+                                auto bClick = false;
+
+                                if ( apiInfo->name[ 0 ] != '\0' )
+                                {
+                                    if ( ImGui::MenuItem( apiInfo->name ) ) { 
+                                        bClick = true;
+                                    }
+                                }
+                                else
+                                {
+                                    char buf[ 6 ];
+                                    sprintf_s( buf, "#%04X", apiInfo->uOrdinal );
+                                    if ( ImGui::MenuItem( buf ) ) { 
+                                        bClick = true;
+                                    }
+                                }
+
+                                if ( bClick ) { 
+
+                                    scyllaCtx.getImportsHandling( )->
+                                        setImport( &importThunk, apiInfo->pModule->getFilename( ),
+                                            apiInfo->name, apiInfo->uOrdinal, apiInfo->uHint, true, apiInfo->isForwarded );
+
+                                    printf( "Option 1 %s\n", apiInfo->name );
+
+                                    ImGui::EndChild( );
+                                    ImGui::EndMenu( );
+                                    ImGui::EndPopup( );
+                                    ImGui::TreePop( );
+                                    return;
+                                }
+                            }
+
+                            ImGui::EndChild( );
+                        }
+
+                        ImGui::EndMenu( );
+                    }
+
+                    ImGui::EndPopup( );
+                }
+
+            }
+            
+            ImGui::TreePop( );
+        }
+    }
+
+
+}
+
+
 static 
 void FrameControls( glWindow* instance )
 {
@@ -154,21 +307,6 @@ void FrameControls( glWindow* instance )
                 ImGui::PopItemWidth( );
 
 
-
-
-
-
-
-
-
-
-                //for ( auto& pModuleInfo : vModuleList )
-                //{
-                //    if ( std::wstring( pModuleInfo.pModulePath ).find( strModuleName ) != std::wstring::npos )
-                //    {
-                //        return setTargetModule( pModuleInfo.uModBase, pModuleInfo.uModBaseSize, pModuleInfo.pModulePath );
-                //    }
-                //}
             }
 
             if ( ImGui::Button( "Dump" ) )
@@ -177,14 +315,14 @@ void FrameControls( glWindow* instance )
                 std::thread( [&]( )
                     {
                         scyllaCtx.setDefaultFolder( LR"(X:\_\testScy\)" );
-                        //scyllaCtx.iatAutosearchActionHandler( );
+                        scyllaCtx.iatAutosearchActionHandler( );
                         scyllaCtx.getImportsActionHandler( );
 
                         scyllaCtx.dumpActionHandler( );
                     } ).detach( );
 
             }
-            if ( ImGui::BeginChild( "##imports", ImVec2( instance->getSize( ).x - 16.f, 500.f ), true ) )
+            if ( ImGui::BeginChild( "##imports", ImVec2( instance->getSize( ).x - 16.f, 300.f ), true ) )
             {
                 if ( scyllaCtx.getImportsHandling( )->thunkCount( ) )
                 {
@@ -197,80 +335,7 @@ void FrameControls( glWindow* instance )
                     );
                     ImGui::NewLine( );
 
-                    for ( auto& [key, moduleThunk] : scyllaCtx.getImportsHandling( )->vModuleList )
-                    {
-                        std::string strModuleName = "";
-
-
-                        //if ( !moduleThunk.isValid( ) )
-                        //    continue;
-
-                        strModuleName = std::format( "{} {} ({})", ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), Utils::wstrToStr( moduleThunk.pModuleName ), moduleThunk.mpThunkList.size( ) );
-
-                        if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
-                        {
-                            if ( ImGui::BeginPopupContextItem( strModuleName.c_str( ) ) )
-                            {
-                                if ( ImGui::MenuItem( "Ivalidade" ) )
-                                {
-                                    scyllaCtx.getImportsHandling( )->invalidateModule( &moduleThunk );
-
-                                }
-
-
-                                if ( ImGui::MenuItem( "Cut Module" ) )
-                                {
-                                    scyllaCtx.getImportsHandling( )->cutModule( &moduleThunk );
-                                    ImGui::EndPopup( );
-                                    ImGui::TreePop( );
-                                    break; // prevent crash
-
-                                }
-
-                                ImGui::EndPopup( );
-                            }
-
-                            for ( auto& [RVA, importThunk] : moduleThunk.mpThunkList )
-                            {
-                                std::string strFuncName = "";
-
-                                //if ( !importThunk.valid )
-                                //    continue;
-
-                                strFuncName = std::format( "  {} {}",
-                                    ( ( !importThunk.bValid ) ? "[Invalid]" : ( importThunk.bSuspect ? "[Suspect]" : "[OK]" ) ),
-                                    importThunk.name );
-
-                                ImGui::Text( strFuncName.c_str( ) );
-
-                                if ( ImGui::BeginPopupContextItem( strFuncName.c_str( ) ) )
-                                {
-                                    if ( ImGui::MenuItem( "Ivalidade" ) )
-                                    {
-                                        printf( "Option 1 %s\n", strFuncName.c_str( ) );
-
-                                        scyllaCtx.getImportsHandling( )->invalidateImport( &importThunk );
-                                    }
-                                    if ( ImGui::MenuItem( "Cut Thunk" ) )
-                                    {
-                                        scyllaCtx.getImportsHandling( )->cutImport( &importThunk );
-                                        ImGui::EndPopup( );
-                                        break; // prevent crash
-                                    }
-                                    if ( ImGui::MenuItem( "Option 3" ) )
-                                    {
-                                        // Handle Option 3
-                                    }
-                                    ImGui::EndPopup( );
-                                }
-
-                            }
-                            ImGui::TreePop( );
-                        }
-                    }
-
-
-
+                    ImportThree( scyllaCtx );
                 }
             }
             ImGui::EndChild( );

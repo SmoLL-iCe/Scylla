@@ -54,12 +54,9 @@ private:
 
 	bool isModuleLoadedInOwnProcess( ModuleInfo* pModule );
 	void parseModuleWithOwnProcess( ModuleInfo* pModule );
-	bool isPeAndExportTableValid( PIMAGE_NT_HEADERS pNtHeader );
+
 	void findApiInProcess( ModuleInfo* pModule, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
 	bool findApiInExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi );
-
-	std::unique_ptr<std::uint8_t[ ]> getHeaderFromProcess( ModuleInfo* pModule );
-	std::unique_ptr<std::uint8_t[ ]> getExportTableFromProcess( ModuleInfo* pModule, PIMAGE_NT_HEADERS pNtHeader );
 
 	void setModulePriority( ModuleInfo* pModule );
 	void setMinMaxApiAddress( std::uintptr_t uVirtualAddress );
