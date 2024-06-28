@@ -599,32 +599,45 @@ void ApiReader::readAndParseIAT( std::uintptr_t uAddressIAT, std::uint32_t uSize
 
 void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, std::size_t szSize )
 {
+	if ( !uAddressIAT || !pIatBuffer || !szSize )
+	{
+		return;
+	}
+
+	std::size_t szTableSize = szSize / sizeof( std::uintptr_t );
+
 #ifdef WIN64
-	std::vector<std::uintptr_t> iatSpan{};
+	
+	if ( !ProcessAccessHelp::is64BitProcess && szTableSize )
+		szTableSize /= 2;
 
-	if ( ProcessAccessHelp::is64BitProcess )
-	{
-		iatSpan.assign( reinterpret_cast<std::uintptr_t*>( pIatBuffer ), reinterpret_cast<std::uintptr_t*>( pIatBuffer ) + szSize / sizeof( std::uintptr_t ) );
-	}
-	else
-	{
-		std::span<std::uint32_t> iatSpan32( reinterpret_cast<std::uint32_t*>( pIatBuffer ), szSize / sizeof( std::uint32_t ) );
-
-		for ( auto& uAddress32 : iatSpan32 ) 
-			iatSpan.push_back( uAddress32 );
-	}
-
-#else
-
-	std::span<std::uintptr_t> iatSpan( reinterpret_cast<std::uintptr_t*>( pIatBuffer ), szSize / sizeof( std::uintptr_t ) );
 #endif // WIN64
 
 	ModuleInfo* pModule = nullptr;
 	bool isSuspect = false;
 	int nCountApiFound = 0, nCountApiNotFound = 0;
 
-	for ( auto& uAddress : iatSpan )
-	{
+	for ( size_t i = 0; i < szTableSize; i++ ) {
+
+#ifdef WIN64
+		std::uintptr_t uAddress = 0;
+
+		std::uintptr_t uIatEntryAddress = 0;
+
+		if ( ProcessAccessHelp::is64BitProcess ) { 
+			uAddress = reinterpret_cast<std::uintptr_t*>( pIatBuffer )[ i ];
+			uIatEntryAddress = uAddressIAT + i * sizeof( std::uintptr_t );
+		}
+		else { 
+			uAddress = reinterpret_cast<std::uint32_t*>( pIatBuffer )[ i ];
+			uIatEntryAddress = uAddressIAT + i * sizeof( std::uint32_t );
+		}
+#else
+		std::uintptr_t uAddress = reinterpret_cast<std::uintptr_t*>( pIatBuffer )[ i ];
+
+		std::uintptr_t uIatEntryAddress = uAddressIAT + i * sizeof( std::uintptr_t );
+#endif // WIN64
+
 		if ( isInvalidMemoryForIat( uAddress ) )
 			continue;
 
@@ -647,7 +660,6 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 				nCountApiFound++;
 				LOGS_DEBUG( PRINTF_DWORD_PTR_FULL_S " %ls %d %s", pApiFound->uVA, pApiFound->pModule->getFilename( ), pApiFound->uOrdinal, pApiFound->name );
 
-				std::uintptr_t uIatEntryAddress = uAddressIAT + reinterpret_cast<std::uintptr_t>( &uAddress ) - reinterpret_cast<std::uintptr_t>( pIatBuffer );
 				if ( pModule != pApiFound->pModule )
 				{
 					pModule = pApiFound->pModule;
@@ -662,7 +674,7 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 		else
 		{
 			nCountApiNotFound++;
-			addNotFoundApiToModuleList( uAddressIAT + reinterpret_cast<std::uintptr_t>( &uAddress ) - reinterpret_cast<std::uintptr_t>( pIatBuffer ), uAddress );
+			addNotFoundApiToModuleList( uIatEntryAddress, uAddress );
 		}
 		
 	}

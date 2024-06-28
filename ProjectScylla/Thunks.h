@@ -33,5 +33,6 @@ public:
 	std::uintptr_t uKey;
 
 	std::uintptr_t getFirstThunk( ) const;
+
 	bool isValid( ) const;
 };

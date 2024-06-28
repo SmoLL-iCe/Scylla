@@ -109,7 +109,7 @@ void ProcessesTab( ) {
             static std::vector<Process> vProcessList{};
 
 
-
+            //=========================================================
 
             static std::chrono::steady_clock::time_point lastTimePoint = {};
 
@@ -124,7 +124,7 @@ void ProcessesTab( ) {
                 lastTimePoint = nowTimePoint + 3s;
             }
 
-
+            //=========================================================
 
             static std::chrono::steady_clock::time_point lastTimeUpIconsPoint = {};
 
@@ -137,12 +137,7 @@ void ProcessesTab( ) {
                 lastTimeUpIconsPoint = nowTimePoint + 10s;
             }
 
-
-
-
-
-
-
+            //=========================================================
 
             auto lowerFilter = Utils::StrToLower( strFilter );
 
@@ -384,8 +379,8 @@ bool IatTab( )
                 scyllaCtx->getImportsHandling( )->suspectThunkCount( )
             );
         }
+        ImGui::EndChild( );
     }
-    ImGui::EndChild( );
 
 
     if ( ImGui::BeginChild( "IAT", ImVec2( fInnerWidth, fInnerHeight - 100.f ), true ) )
@@ -394,7 +389,11 @@ bool IatTab( )
         {
             std::string strModuleName = "";
 
-            strModuleName = std::format( "{} {} ({})", ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), Utils::wstrToStr( moduleThunk.pModuleName ), moduleThunk.mpThunkList.size( ) );
+            strModuleName = std::format( "{} {} ({}) FThunk: {:08X}", 
+                ( ( !moduleThunk.isValid( ) ) ? "[Invalid]" : "[OK]" ), 
+                Utils::wstrToStr( moduleThunk.pModuleName ), 
+                moduleThunk.mpThunkList.size( ), 
+                moduleThunk.uFirstThunk  );
 
             if ( ImGui::TreeNode( strModuleName.c_str( ) ) )
             {
@@ -421,8 +420,10 @@ bool IatTab( )
                 {
                     std::string strFuncName = "";
 
-                    strFuncName = std::format( "  {} {}",
+                    strFuncName = std::format( "  {} RVA: {:08X} Ord: {:04X} Name: {}",
                         ( ( !importThunk.bValid ) ? "[Invalid]" : ( importThunk.bSuspect ? "[Suspect]" : "[OK]" ) ),
+                        importThunk.uRVA,
+                        importThunk.uOrdinal,
                         importThunk.name );
 
                     ImGui::Text( strFuncName.c_str( ) );
@@ -558,12 +559,8 @@ bool IatTab( )
             }
         }
 
-
-    
         ImGui::EndChild( );
     }
-
-
 
     if ( ImGui::Button( "Dump" ) )
     {
@@ -578,8 +575,24 @@ bool IatTab( )
 
     }
 
-    
     return true;
+}
+
+static 
+void ConfigTab( )
+{
+    float fInnerWidth = ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
+
+    float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
+
+    ImGui::BeginGroup( );
+    if ( ImGui::BeginChild( "##Config", ImVec2( fInnerWidth, 70.f ), true ) )
+    {
+
+
+        ImGui::EndChild( );
+    }
+    ImGui::EndGroup( );
 }
 
 
