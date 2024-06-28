@@ -609,7 +609,7 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 #ifdef WIN64
 	
 	if ( !ProcessAccessHelp::is64BitProcess && szTableSize )
-		szTableSize /= 2;
+		szTableSize *= 2;
 
 #endif // WIN64
 
