@@ -165,6 +165,7 @@
     <ClCompile Include="ImportsHandling.cpp" />
     <ClCompile Include="Interface\CreateWindow.cpp" />
     <ClCompile Include="Interface\FrmMain.cpp" />
+    <ClCompile Include="Interface\IconList.cpp" />
     <ClCompile Include="Interface\imgui_custom.cpp" />
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui.cpp" />
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui_draw.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="ImportsHandling.h" />
     <ClInclude Include="Interface\CreateWindow.h" />
     <ClInclude Include="Interface\FrmMain.h" />
+    <ClInclude Include="Interface\IconList.h" />
     <ClInclude Include="Interface\imgui_custom.h" />
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3.h" />
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3native.h" />
@@ -216,6 +218,7 @@
     <ClInclude Include="Interface\Thirdparty\ImGui\imstb_rectpack.h" />
     <ClInclude Include="Interface\Thirdparty\ImGui\imstb_textedit.h" />
     <ClInclude Include="Interface\Thirdparty\ImGui\imstb_truetype.h" />
+    <ClInclude Include="Interface\Thirdparty\ImGui\stb_image.h" />
     <ClInclude Include="Logger.h" />
     <ClInclude Include="PeParser.h" />
     <ClInclude Include="ProcessAccessHelp.h" />

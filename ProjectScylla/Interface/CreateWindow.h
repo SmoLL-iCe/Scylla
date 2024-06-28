@@ -71,4 +71,10 @@ public:
 	void goodbye( );
 
 	ImFont* getFont( int index ) const;
+
+	static bool LoadImageFile( std::string ImageLocation, ImVec2& ImgSize, GLuint* pOutImageTexture );
+
+	static bool LoadMemoryFile( uint8_t* ImageData, ImVec2 ImgSize, GLuint* pOutImageTexture );
+
+	static bool LoadMemoryFile( std::vector<uint8_t>& image, ImVec2 ImgSize, GLuint* pOutImageTexture );
 };

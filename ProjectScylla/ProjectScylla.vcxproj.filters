@@ -149,6 +149,9 @@
     <ClCompile Include="Interface\imgui_custom.cpp">
       <Filter>Interface</Filter>
     </ClCompile>
+    <ClCompile Include="Interface\IconList.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="diStorm\include\distorm.h">
@@ -281,6 +284,12 @@
       <Filter>Tools</Filter>
     </ClInclude>
     <ClInclude Include="Interface\imgui_custom.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Thirdparty\ImGui\stb_image.h">
+      <Filter>Interface\Thirdparty\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\IconList.h">
       <Filter>Interface</Filter>
     </ClInclude>
   </ItemGroup>

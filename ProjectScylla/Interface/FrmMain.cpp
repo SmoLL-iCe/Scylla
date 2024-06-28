@@ -13,6 +13,7 @@
 #include <coroutine>
 #include <thread>
 #include "imgui_custom.h"
+#include "IconList.h"
 
 using namespace std::chrono_literals;
 
@@ -29,6 +30,7 @@ extern "C" __declspec( dllexport ) int MyFunc( long parm1 ) {
 }
 
 std::unique_ptr<ScyllaContext> scyllaCtx = std::make_unique<ScyllaContext>( );
+std::unique_ptr<IconList> processesIcons = std::make_unique<IconList>( L".exe" );
 
 Process currentProcess = {};
 ModuleInfo currentModule = {};
@@ -36,10 +38,13 @@ ModuleInfo currentModule = {};
 static 
 void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVec2 Size, bool bWithBeginChild ) {
 
+    float fHeight = ImGui::GetCurrentWindow()->DC.CursorPos.y;
+
     if ( bWithBeginChild )
     {
         ImGui::BeginChild( "##filter", Size, true );
     }
+
     ImGui::BeginGroup( );
     {
         char pFilter[ 256 ] = { 0 };
@@ -68,7 +73,12 @@ void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVe
     if ( bWithBeginChild )
     {
 		ImGui::EndChild( );
-	}
+    }
+    else
+    {
+        auto fDiff = ImGui::GetCurrentWindow( )->DC.CursorPos.y - fHeight;
+        ImGui::GetCurrentWindow( )->DC.CursorPos.y += ( Size.y > fDiff ) ? ( Size.y - fDiff ) : 0.f;
+    }
 }
 
 static 
@@ -79,11 +89,11 @@ void ProcessesTab( ) {
 
     float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
 
-    float fHeightFilter = 38.f;
+    float fHeightFilter = 30.f;
 
     static std::string strFilter = "";
 
-    DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), true );
+    DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), false );
 
     fHeightFilter += ( ImGui::GetStyle( ).WindowPadding.y );
 
@@ -97,6 +107,9 @@ void ProcessesTab( ) {
             auto nItems = 0;
 
             static std::vector<Process> vProcessList{};
+
+
+
 
             static std::chrono::steady_clock::time_point lastTimePoint = {};
 
@@ -112,22 +125,43 @@ void ProcessesTab( ) {
             }
 
 
+
+            static std::chrono::steady_clock::time_point lastTimeUpIconsPoint = {};
+
+            if ( nowTimePoint.time_since_epoch( ).count( ) > lastTimeUpIconsPoint.time_since_epoch( ).count( ) )
+            {
+                // update icons
+                for ( const auto& _Process : vProcessList )
+                    processesIcons->extractIcon( _Process.pModulePath );
+
+                lastTimeUpIconsPoint = nowTimePoint + 10s;
+            }
+
+
+
+
+
+
+
+
             auto lowerFilter = Utils::StrToLower( strFilter );
 
             for ( const auto& _Process : vProcessList )
             {
                 ++nItems;
 
-                std::string strProcessName = Utils::wstrToStr( _Process.pFileName );
+                const std::string strProcessName = Utils::wstrToStr( _Process.pFileName );
 
-                std::string lowerProcessName = Utils::StrToLower( strProcessName );
+                const std::string lowerProcessName = Utils::StrToLower( strProcessName );
 
                 if ( !strFilter.empty( ) && lowerProcessName.find( lowerFilter ) == std::string::npos )
                     continue;
 
-                auto strFmt = std::format( "\t{:04}\t{}", _Process.PID, strProcessName );
+                auto icon = processesIcons->getIcon( _Process.pModulePath );
 
-                bool isSelected = ( currentProcess.PID != 0 ) ? ( currentProcess.PID == _Process.PID ) : false;
+                const auto strFmt = std::format( "\t{:04}\t{}", _Process.PID, strProcessName );
+
+                const bool isSelected = ( currentProcess.PID != 0 ) ? ( currentProcess.PID == _Process.PID ) : false;
 
                 if ( isSelected )
                 {
@@ -141,8 +175,14 @@ void ProcessesTab( ) {
                         ImGui::PushStyleColor( ImGuiCol_Button + xx, col );
                     }
                 }
+
+                ImVec2 iconSize = ImVec2( 20.f, 20.f );
+
+                ImGui::Image( icon.TextureID, iconSize );
+                //ImGui::NewLine( );
+                ImGui::SameLine( iconSize.x + 16.f );
                 ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
-                if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth, 25.f } ) ) { 
+                if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth - ( iconSize.x +  8.f ), 25.f } ) ) {
 
                     static bool bWaitProcess = false;
 
@@ -221,7 +261,7 @@ bool ModulesTab( ) {
 
     float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
 
-    float fHeightFilter = 38.f;
+    float fHeightFilter = 30.f;
 
     static std::string strFilter = "";
 
@@ -229,6 +269,12 @@ bool ModulesTab( ) {
 
     fHeightFilter += ( ImGui::GetStyle( ).WindowPadding.y );
 
+    static ImTextureID dllIcon = nullptr;
+
+    if ( !dllIcon )
+    {
+        IconList::ExtractIconFromExtension( L".dll", dllIcon );
+	}
 
     ImGui::BeginChildList( __LINE__, fInnerWidth, fInnerHeight - fHeightFilter, [ fInnerWidth, &vModuleList ]( )
         {
@@ -245,9 +291,9 @@ bool ModulesTab( ) {
             {
                 ++nItems;
 
-                std::string strModuleName = Utils::wstrToStr( pModuleInfo.pModulePath );
+                const std::string strModuleName = Utils::wstrToStr( pModuleInfo.pModulePath );
 
-                std::string lowerModuleName = Utils::StrToLower( strModuleName );
+                const std::string lowerModuleName = Utils::StrToLower( strModuleName );
 
                 if ( !strFilter.empty( ) && lowerModuleName.find( lowerFilter ) == std::string::npos )
 					continue;
@@ -261,11 +307,11 @@ bool ModulesTab( ) {
                     }
                 );
 
-                auto ApiListSize = ( itReaderModule != vReaderModuleList.end( ) ) ? itReaderModule->vApiList.size( ) : 0;
+                const auto ApiListSize = ( itReaderModule != vReaderModuleList.end( ) ) ? itReaderModule->vApiList.size( ) : 0;
 
-                auto strFmt = std::format( "\t0x{:016X} {} - Exports ({})", pModuleInfo.uModBase, Utils::wstrToStr( pModuleInfo.getFilename( ) ), ApiListSize );
+                const auto strFmt = std::format( "\t0x{:016X} {} - Exports ({})", pModuleInfo.uModBase, Utils::wstrToStr( pModuleInfo.getFilename( ) ), ApiListSize );
 
-                bool isSelected = ( currentModule.uModBase != 0 ) ? ( currentModule.uModBase == pModuleInfo.uModBase ) : false;
+                const bool isSelected = ( currentModule.uModBase != 0 ) ? ( currentModule.uModBase == pModuleInfo.uModBase ) : false;
 
                 if ( isSelected )
                 {
@@ -279,8 +325,14 @@ bool ModulesTab( ) {
                         ImGui::PushStyleColor( ImGuiCol_Button + xx, col );
                     }
                 }
+
+                ImVec2 iconSize = ImVec2( 20.f, 20.f );
+
+                ImGui::Image( dllIcon, iconSize );
+
+                ImGui::SameLine( iconSize.x + 16.f );
                 ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
-                if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth, 25.f } ) ) {
+                if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth - ( iconSize.x + 8.f ), 25.f } ) ) {
                     currentModule = pModuleInfo;
 
                     scyllaCtx->setTargetModule( currentModule.uModBase, currentModule.uModBaseSize, currentModule.pModulePath );
@@ -575,7 +627,6 @@ void FrameControls( glWindow* pWindowInstance )
 
     if ( ImGui::Begin( "aaah", nullptr, window_flags ) )
     {
-
         ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
         ImGui::DisplayTabs( pWindowInstance->getSize( ).x );
         ImGui::PopStyleVar( );

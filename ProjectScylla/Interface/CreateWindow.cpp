@@ -1,4 +1,4 @@
-
+#define STB_IMAGE_IMPLEMENTATION
 #include "Thirdparty/ImGui/imgui.h"
 #include "Thirdparty/ImGui/imgui_impl_glfw.h"
 #include "Thirdparty/ImGui/imgui_impl_opengl3.h"
@@ -15,6 +15,7 @@
 #include <iostream>
 #include <map>
 #include <chrono>
+#include <ImGui/stb_image.h>
 
 using namespace std::chrono_literals;
 
@@ -352,4 +353,46 @@ void mouseButtonCallback( GLFWwindow* pWindow, int nButton, int nAction, int nMo
     {
         bMoveWindow = false;
     }
+}
+
+bool glWindow::LoadImageFile( std::string ImageLocation, ImVec2& ImgSize, GLuint* pOutImageTexture )
+{
+    auto ImgWidth = 0;
+    auto ImgHeight = 0;
+    const auto ImageData = stbi_load( ImageLocation.c_str( ), &ImgWidth, &ImgHeight, nullptr, 4 );
+    if ( ImageData == nullptr )
+        return false;
+
+    glGenTextures( 1, pOutImageTexture );
+    glBindTexture( GL_TEXTURE_2D, *pOutImageTexture );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+    glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, ImgWidth, ImgHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, ImageData );
+    stbi_image_free( ImageData );
+
+    ImgSize = { static_cast<float>( ImgWidth ), static_cast<float>( ImgHeight ) };
+
+    return true;
+}
+
+bool glWindow::LoadMemoryFile( uint8_t* ImageData, ImVec2 ImgSize, GLuint* pOutImageTexture )
+{
+    glGenTextures( 1, pOutImageTexture );
+    glBindTexture( GL_TEXTURE_2D, *pOutImageTexture );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+    glPixelStorei( GL_UNPACK_ROW_LENGTH, 0 );
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>( ImgSize.x ), static_cast<GLsizei>( ImgSize.y ), 0, GL_RGBA, GL_UNSIGNED_BYTE, ImageData );
+
+    return true;
+}
+
+bool glWindow::LoadMemoryFile( std::vector<uint8_t>& image, ImVec2 ImgSize, GLuint* pOutImageTexture )
+{
+    return LoadMemoryFile( image.data( ), ImgSize, pOutImageTexture );
 }
