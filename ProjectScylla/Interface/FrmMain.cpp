@@ -14,6 +14,7 @@
 #include <thread>
 #include "imgui_custom.h"
 #include "IconList.h"
+#include "../ScyllaConfig.hpp"
 
 using namespace std::chrono_literals;
 
@@ -23,6 +24,7 @@ constexpr char8_t Target[ 4 ] = u8"\uf601";
 constexpr char8_t Sitemap[ 4 ] = u8"\uf0e8";
 constexpr char8_t Flask[ 4 ] = u8"\uf0c3";
 constexpr char8_t Search[ 4 ] = u8"\uf002";
+constexpr char8_t Gear[ 4 ] = u8"\uf013";
 #define PCHR( x ) reinterpret_cast<const char*>( x )
 
 extern "C" __declspec( dllexport ) int MyFunc( long parm1 ) {
@@ -95,7 +97,32 @@ void ProcessesTab( ) {
 
     DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), false );
 
-    fHeightFilter += ( ImGui::GetStyle( ).WindowPadding.y );
+
+#ifdef WIN64
+
+    static int archFilter = 0;
+
+    ImGui::BeginGroup( );
+
+    ImGui::RadioButton( "All", &archFilter, 0 );
+
+    auto fFractionWidth = ( ImGui::GetWindowWidth( ) / 100.f );
+    auto fRadioLeft = fFractionWidth * 30.f + ImGui::GetStyle( ).WindowPadding.x * 2.f;
+
+    ImGui::SameLine( fRadioLeft );
+    ImGui::RadioButton( "Only 64 bits", &archFilter, 1 );
+
+    fRadioLeft += fFractionWidth * 30.f + ImGui::GetStyle( ).WindowPadding.x * 2.f;
+    ImGui::SameLine( fRadioLeft );
+    ImGui::RadioButton( "Only 32 bits", &archFilter, 2 );
+
+    ImGui::EndGroup( ); 
+    
+    ImGui::Dummy( ImVec2( 0.f, 3.f ) );
+
+    fHeightFilter += 30.f;
+
+#endif
 
     ImGui::BeginChildList( __LINE__, fInnerWidth, fInnerHeight - fHeightFilter, [ fInnerWidth ]( )
         {
@@ -145,6 +172,17 @@ void ProcessesTab( ) {
             {
                 ++nItems;
 
+#ifdef WIN64
+                if ( archFilter )
+                {
+                    if ( archFilter == 1 && _Process.archType != PROCESS_64 )
+						continue;
+
+					if ( archFilter == 2 && _Process.archType != PROCESS_32 )
+						continue;
+                }
+#endif // WIN64
+
                 const std::string strProcessName = Utils::wstrToStr( _Process.pFileName );
 
                 const std::string lowerProcessName = Utils::StrToLower( strProcessName );
@@ -154,7 +192,30 @@ void ProcessesTab( ) {
 
                 auto icon = processesIcons->getIcon( _Process.pModulePath );
 
-                const auto strFmt = std::format( "\t{:04}\t{}", _Process.PID, strProcessName );
+                std::string archTypeStr = "";
+
+                switch ( _Process.archType )
+                {
+                    case PROCESS_32:
+						archTypeStr = "32 bits";
+						break;
+#ifdef WIN64
+                    case PROCESS_64:
+                        archTypeStr = "64 bits";
+                        break;
+#endif // WIN64
+                    case PROCESS_UNKNOWN:
+                        archTypeStr = "Unknown";
+                        break;
+                    case PROCESS_MISSING_RIGHTS:
+						archTypeStr = "Missing rights";
+						break;
+					default:
+						archTypeStr = "Unknown";
+						break;
+                }
+
+                const auto strFmt = std::format( "\t{:04}\t{}\t{}", _Process.PID, strProcessName, archTypeStr );
 
                 const bool isSelected = ( currentProcess.PID != 0 ) ? ( currentProcess.PID == _Process.PID ) : false;
 
@@ -585,10 +646,79 @@ void ConfigTab( )
 
     float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
 
+    auto fHeightFraction = ( ( fInnerHeight - ImGui::GetStyle( ).WindowPadding.x ) / 100.f );
     ImGui::BeginGroup( );
-    if ( ImGui::BeginChild( "##Config", ImVec2( fInnerWidth, 70.f ), true ) )
+    float fWithBlock = ( ( fInnerWidth - ImGui::GetStyle( ).WindowPadding.x ) / 2.f );
+    if ( ImGui::BeginChild( "##Config1", ImVec2( fWithBlock, ( fHeightFraction * 60.f ) ), true ) )
     {
+        ImGui::Text( "IAT Rebuilder" );
 
+        std::wstring wstrSecName = Config::IAT_SECTION_NAME;
+        std::string strSecName = Utils::wstrToStr( wstrSecName );
+
+        ImGui::PushItemWidth( ( fWithBlock / 3.f ) );
+        ImGui::InputText( "Section Name", strSecName.data( ), 5 );
+        ImGui::PopItemWidth( );
+
+
+        wstrSecName = Utils::strToWstr( strSecName );
+
+        wcscpy_s( Config::IAT_SECTION_NAME, wstrSecName.c_str( ) );
+
+        ImGui::Checkbox( "Fix IAT and OEP", &Config::IAT_FIX_AND_OEP_FIX );
+
+        ImGui::Checkbox( "Use OriginalFirstThunk", &Config::OriginalFirstThunk_SUPPORT );
+
+        ImGui::Checkbox( "New IAT", &Config::CREATE_NEW_IAT_IN_SECTION );
+        
+        ImGui::BeginDisabled( true );
+        ImGui::Checkbox( "Don't create a new section", &Config::DONT_CREATE_NEW_SECTION );
+        ImGui::EndDisabled( );
+
+        //ImGui::NewLine( );
+
+        ImGui::Checkbox( "Scan for Direct Imports", &Config::SCAN_DIRECT_IMPORTS );
+        ImGui::Checkbox( "Fix Direct Imports NORMAL", &Config::FIX_DIRECT_IMPORTS_NORMAL );
+        ImGui::Checkbox( "Fix Direct Imports UNIVERSAL", &Config::FIX_DIRECT_IMPORTS_UNIVERSAL );
+
+        ImGui::EndChild( );
+    }
+    ImGui::SameLine( fWithBlock + ImGui::GetStyle( ).WindowPadding.x );
+    if ( ImGui::BeginChild( "##Config2", ImVec2( fWithBlock, ( fHeightFraction * 60.f ) ), true ) )
+    {
+        ImGui::Text( "PE Rebuilder" );
+
+        ImGui::Checkbox( "Update header checksum", &Config::UPDATE_HEADER_CHECKSUM );
+
+        ImGui::Checkbox( "Create backup", &Config::CREATE_BACKUP );
+
+        ImGui::Checkbox( "Remove DOS header stub", &Config::REMOVE_DOS_HEADER_STUB );
+
+        ImGui::EndChild( );
+    }
+
+    if ( ImGui::BeginChild( "##Config3", ImVec2( fWithBlock, ( fHeightFraction * 40.f ) ), true ) )
+    {
+        ImGui::Text( "Dll injection" );
+
+        ImGui::Checkbox( "Unload DLL after injection", &Config::DLL_INJECTION_AUTO_UNLOAD );
+
+        ImGui::EndChild( );
+    }
+    ImGui::SameLine( fWithBlock + ImGui::GetStyle( ).WindowPadding.x );
+    if ( ImGui::BeginChild( "##Config4", ImVec2( fWithBlock, ( fHeightFraction * 40.f ) ), true ) )
+    {
+        ImGui::Text( "Misc" );
+
+        ImGui::Checkbox( "Use PE header from disk", &Config::USE_PE_HEADER_FROM_DISK );
+
+        ImGui::Checkbox( "Enable debug privilege", &Config::DEBUG_PRIVILEGE );
+
+        ImGui::Checkbox( "Suspend process for dumping", &Config::SUSPEND_PROCESS_FOR_DUMPING );
+
+        ImGui::Checkbox( "Use advanced IAT search", &Config::USE_ADVANCED_IAT_SEARCH );
+
+        ImGui::Checkbox( "Read APIs always from disk (slower!)", &Config::APIS_ALWAYS_FROM_DISK );
 
         ImGui::EndChild( );
     }
@@ -619,7 +749,7 @@ void FrameControls( glWindow* pWindowInstance )
         ImGui::AddTab( "Processes", PCHR( Target ), pWindowInstance->getFont( 1 ) );
         ImGui::AddTab( "Modules", PCHR( Sitemap ), pWindowInstance->getFont( 1 ) );
         ImGui::AddTab( "OEP & IAT", PCHR( Flask ), pWindowInstance->getFont( 1 ) );
-        ImGui::AddTab( "Config", PCHR( Flask ), pWindowInstance->getFont( 1 ) );
+        ImGui::AddTab( "Config", PCHR( Gear ), pWindowInstance->getFont( 1 ) );
 
 
         pWindowInstance->setFramePos( 0.f, 0.f );
@@ -644,7 +774,8 @@ void FrameControls( glWindow* pWindowInstance )
         ImGui::DisplayTabs( pWindowInstance->getSize( ).x );
         ImGui::PopStyleVar( );
 
-        if ( ImGui::BeginChild( "##process", ImVec2( pWindowInstance->getSize( ).x - 16.f, 400.f ), true ) )
+        if ( ImGui::BeginChild( "##tabs", ImVec2( pWindowInstance->getSize( ).x - 16.f, 400.f ), true, 
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
         {
             while ( true )
             {
@@ -672,6 +803,11 @@ void FrameControls( glWindow* pWindowInstance )
 					}
                     break;
                 }
+                case 3:
+                {
+					ConfigTab( );
+					break;
+				}
                 default:
                     break;
                 }

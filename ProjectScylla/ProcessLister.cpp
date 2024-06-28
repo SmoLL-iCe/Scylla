@@ -159,12 +159,12 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
 
     if ( hProcess && hProcess != INVALID_HANDLE_VALUE )
     {
-        ProcessType processType = checkIsProcess64( hProcess );
+        process.archType = checkIsProcess64( hProcess );
 
 #ifdef WIN64
-        if ( processType == PROCESS_64 || processType == PROCESS_32 )
+        if ( process.archType == PROCESS_64 || process.archType == PROCESS_32 )
 #else
-        if ( processType == PROCESS_32 )
+        if ( process.archType == PROCESS_32 )
 #endif
         {
             process.uSessionId = pProcess->SessionId;

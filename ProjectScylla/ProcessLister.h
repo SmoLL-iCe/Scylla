@@ -7,28 +7,27 @@
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
 
+enum ProcessType {
+	PROCESS_UNKNOWN,
+	PROCESS_MISSING_RIGHTS,
+	PROCESS_32,
+	PROCESS_64
+};
+
 class Process {
 public:
 	std::uint32_t PID;
 	std::uint32_t uSessionId;
 	std::uintptr_t uImageBase;
 	std::uintptr_t uPebAddress;
-	//std::uint32_t uEntryPoint; //RVA without imagebase
 	std::uint32_t uImageSize;
 	wchar_t pFileName[ MAX_PATH ];
 	wchar_t pModulePath[ MAX_PATH ];
-
+	ProcessType archType;
 	Process( )
 	{
 		PID = 0;
 	}
-};
-
-enum ProcessType {
-	PROCESS_UNKNOWN,
-	PROCESS_MISSING_RIGHTS,
-	PROCESS_32,
-	PROCESS_64
 };
 
 class ProcessLister {

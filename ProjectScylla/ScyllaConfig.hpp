@@ -8,7 +8,7 @@ namespace Config
 	inline bool VALIDATE_PE = 1;
 	inline bool DLL_INJECTION_AUTO_UNLOAD = 1;
 	inline bool CREATE_BACKUP = 1;
-	inline const wchar_t IAT_SECTION_NAME[] = L".SCY";
+	inline wchar_t IAT_SECTION_NAME[] = L".SCY";
 	inline bool UPDATE_HEADER_CHECKSUM = 1;
 	inline bool REMOVE_DOS_HEADER_STUB = 1;
 	inline bool IAT_FIX_AND_OEP_FIX = 1;
