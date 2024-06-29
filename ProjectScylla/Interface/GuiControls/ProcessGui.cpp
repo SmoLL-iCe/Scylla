@@ -3,7 +3,6 @@
 
 void GuiContext::ProcessesTab( ) {
 
-
     float fInnerWidth = ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
 
     float fInnerHeight = ImGui::GetWindowHeight( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f );
@@ -13,7 +12,6 @@ void GuiContext::ProcessesTab( ) {
     static std::string strFilter = "";
 
     DisplayFilter( "Search process name", strFilter, ImVec2( fInnerWidth, fHeightFilter ), false );
-
 
 #ifdef WIN64
 
@@ -76,7 +74,7 @@ void GuiContext::ProcessesTab( ) {
             {
                 // update icons
                 for ( const auto& _Process : vProcessList )
-                    processesIcons->extractIcon( _Process.pModulePath );
+                    m_processesIcons->extractIcon( _Process.pModulePath );
 
                 lastTimeUpIconsPoint = nowTimePoint + 10s;
             }
@@ -88,7 +86,6 @@ void GuiContext::ProcessesTab( ) {
             for ( const auto& _Process : vProcessList )
             {
                 ++nItems;
-
 #ifdef WIN64
                 if ( archFilter )
                 {
@@ -107,7 +104,7 @@ void GuiContext::ProcessesTab( ) {
                 if ( !strFilter.empty( ) && lowerProcessName.find( lowerFilter ) == std::string::npos )
                     continue;
 
-                auto icon = processesIcons->getIcon( _Process.pModulePath );
+                auto icon = m_processesIcons->getIcon( _Process.pModulePath );
 
                 std::string archTypeStr = "";
 
@@ -134,7 +131,7 @@ void GuiContext::ProcessesTab( ) {
 
                 const auto strFmt = std::format( "\t{:04}\t{}\t{}", _Process.PID, strProcessName, archTypeStr );
 
-                const bool isSelected = ( currentProcess.PID != 0 ) ? ( currentProcess.PID == _Process.PID ) : false;
+                const bool isSelected = ( m_currentProcess.PID != 0 ) ? ( m_currentProcess.PID == _Process.PID ) : false;
 
                 if ( isSelected )
                 {
@@ -152,70 +149,52 @@ void GuiContext::ProcessesTab( ) {
                 ImVec2 iconSize = ImVec2( 20.f, 20.f );
 
                 ImGui::Image( icon.TextureID, iconSize );
-                //ImGui::NewLine( );
                 ImGui::SameLine( iconSize.x + 16.f );
                 ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
                 if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth - ( iconSize.x +  8.f ), 25.f } ) ) {
 
-                    static bool bWaitProcess = false;
+                    m_lockInterface = true;
 
-                    if ( !bWaitProcess )
-                    {
-                        bWaitProcess = true;
+                    std::thread( [ & ]( Process ProcessInfo )
+                        {
+                            ProcessAccessHelp::vModuleList.clear( );
 
-                        std::thread( [ & ]( Process ProcessInfo )
-                            {
-                                ProcessAccessHelp::vModuleList.clear( );
+                            m_scyllaCtx->getApiReader( )->mpApiList.clear( );
+                            if ( m_scyllaCtx->getApiReader( )->mpModuleThunkList ) {
 
-                                scyllaCtx->getApiReader( )->mpApiList.clear( );
-                                if ( scyllaCtx->getApiReader( )->mpModuleThunkList )
+                                m_scyllaCtx->getApiReader( )->mpModuleThunkList->clear( );
+                                m_scyllaCtx->getApiReader( )->mpModuleThunkList = nullptr;
+                            }
+
+                            m_scyllaCtx->getApiReader( )->vModuleList.clear( );
+
+                            m_scyllaCtx->getImportsHandling( )->vModuleList.clear( );
+                            m_scyllaCtx->getImportsHandling( )->mpModuleListNew.clear( );
+
+                            if ( m_scyllaCtx->setProcessById( ProcessInfo.PID ) == 0 ) { 
+
+                                getIatHexString( );
+
+                                m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+
+                                if ( !ProcessAccessHelp::vModuleList.empty( ) )
                                 {
-                                    scyllaCtx->getApiReader( )->mpModuleThunkList->clear( );
-                                    scyllaCtx->getApiReader( )->mpModuleThunkList = nullptr;
+                                    m_currentModule = ProcessAccessHelp::vModuleList[ 0 ];
                                 }
 
-                                scyllaCtx->getApiReader( )->vModuleList.clear( );
+                                m_scyllaCtx->getImportsActionHandler( );
 
-                                scyllaCtx->getImportsHandling( )->vModuleList.clear( );
-                                scyllaCtx->getImportsHandling( )->mpModuleListNew.clear( );
+                                m_currentProcess = ProcessInfo;
 
-                                if ( scyllaCtx->setProcessById( ProcessInfo.PID ) == 0 ) { 
+                                ImGui::SetActiveTabIndex( 1 );
+                            }
 
-#ifdef _WIN64
-                                    auto OEPstr = std::format( "{:016X}", scyllaCtx->m_entrypoint );
+                            m_lockInterface = false;
 
-                                    auto VAstr = std::format( "{:016X}", scyllaCtx->m_addressIAT );
-#else
-                                    auto OEPstr = std::format( "{:08X}", scyllaCtx->m_entrypoint );
-
-                                    auto VAstr = std::format( "{:08X}", scyllaCtx->m_addressIAT );
-#endif // _WIN64
-                                    auto VASizeStr = std::format( "{:08X}", scyllaCtx->m_sizeIAT );
-
-                                    std::memcpy( strOEP.data( ), OEPstr.data( ), 16 );
-                                    std::memcpy( strVA.data( ), VAstr.data( ), 16 );
-                                    std::memcpy( strSize.data( ), VASizeStr.data( ), 16 );
-
-                                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
-
-                                    if ( !ProcessAccessHelp::vModuleList.empty( ) )
-                                    {
-                                        currentModule = ProcessAccessHelp::vModuleList[ 0 ];
-                                    }
-
-                                    scyllaCtx->getImportsActionHandler( );
-
-                                    currentProcess = ProcessInfo;
-
-                                    ImGui::SetActiveTabIndex( 1 );
-                                }
-
-                                bWaitProcess = false;
-
-                            }, _Process ).detach( );
-                    }
-
+                        }, _Process ).detach( );
                 }
+
+                
                 ImGui::PopStyleVar( );
                 if ( isSelected )
                 ImGui::PopStyleColor( 3 );

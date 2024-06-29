@@ -40,17 +40,21 @@ public:
 	~GuiContext( );
 	void Render( );
 private:
-	glWindow* pWindowInstance = nullptr;
-	std::unique_ptr<ScyllaContext> scyllaCtx = {};
-	std::unique_ptr<IconList> processesIcons = {};
+	glWindow* m_pWindowInstance = nullptr;
+	std::unique_ptr<ScyllaContext> m_scyllaCtx = {};
+	std::unique_ptr<IconList> m_processesIcons = {};
 
-	Process currentProcess = {};
-	ModuleInfo currentModule = {};
-	std::uintptr_t uSelectedModuleImportBase = 0;
-	std::uintptr_t nSelectedImportKey = 0;
-	std::string strOEP = "";
-	std::string strVA = "";
-	std::string strSize = "";
+	Process m_currentProcess = {};
+	ModuleInfo m_currentModule = {};
+	std::uintptr_t m_uSelectedModuleImportBase = 0;
+	std::uintptr_t m_uSelectedImportKey = 0;
+	std::string m_strOEP = "";
+	std::string m_strVA = "";
+	std::string m_strSize = "";
+
+	bool m_lockInterface = false;
+
+	void getIatHexString( );
 
 	void DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVec2 Size, bool bWithBeginChild );
 	void DrawIconFontStatus( ImVec2 incPos, float size, int index );
@@ -59,4 +63,5 @@ private:
 	bool SwapIatFunctionShow( ImportThunk* importThunk );
 	bool IatTab( );
 	void ConfigTab( );
+
 };

@@ -27,13 +27,6 @@ constexpr auto ICON_MAX_FA = 0xff00;
 #endif
 #pragma comment(lib, "Opengl32.lib")
 
-namespace ImGui
-{
-    void customStyleColorsLight( )
-    {
-    }
-}
-
 static
 void glfw_error_callback2( int error, const char* pDescription )
 {
@@ -62,9 +55,13 @@ static
 ImFont* addFontFromData( void* pData, int const nSize, const char* pName, float const fSizePx, const ImWchar* pRanges = nullptr )
 {
     auto font_cfg           = ImFontConfig( );
+
     font_cfg.OversampleH    = font_cfg.OversampleV = 1;
+
     font_cfg.PixelSnapH     = true;
+
     auto& io                = ImGui::GetIO( );
+
     // if ( font_cfg.Name[ 0 ] == '\0' )
     //     strcpy_s( font_cfg.Name, pName );
 
@@ -72,6 +69,7 @@ ImFont* addFontFromData( void* pData, int const nSize, const char* pName, float 
         font_cfg.SizePixels = fSizePx;
 
     io.IniFilename = ""; //"xxx__xx";//aquivo de config
+
     return io.Fonts->AddFontFromMemoryTTF( pData, nSize, font_cfg.SizePixels, &font_cfg, pRanges );
 }
 
@@ -146,7 +144,7 @@ void glWindow::routine( )
 
     ImGui::CreateContext( );
 
-    ImGui::customStyleColorsLight( );
+    ImGui::StyleColorsDark( );
 
     auto& style = ImGui::GetStyle( );
 

@@ -60,7 +60,7 @@ void ScyllaContext::getPePreInfo( )
 		new PeParser( m_strTargetFilePath.c_str( ), false ) :
 		new PeParser( ProcessAccessHelp::uTargetImageBase, false );
 
-	m_entrypoint = pPeFile->getEntryPoint( ) + m_processPtr.uImageBase;
+	m_uEntryPoint = pPeFile->getEntryPoint( ) + m_processPtr.uImageBase;
 
 	auto pDirImport = pPeFile->getDirectory( IMAGE_DIRECTORY_ENTRY_IAT );
 
@@ -71,8 +71,8 @@ void ScyllaContext::getPePreInfo( )
 
 		if ( uAddressIAT && uSizeIAT )
 		{
-			m_addressIAT = uAddressIAT + m_processPtr.uImageBase;
-			m_sizeIAT = uSizeIAT;
+			m_uAddressIAT = uAddressIAT + m_processPtr.uImageBase;
+			m_uSizeIAT = uSizeIAT;
 		}
 	}
 
@@ -304,7 +304,7 @@ void ScyllaContext::dumpActionHandler( )
 
 	if ( pPeFile->isValidPeFile( ) )
 	{
-		if ( pPeFile->dumpProcess( ProcessAccessHelp::uTargetImageBase, m_entrypoint, m_strDumpFullFilePath.c_str( ) ) )
+		if ( pPeFile->dumpProcess( ProcessAccessHelp::uTargetImageBase, m_uEntryPoint, m_strDumpFullFilePath.c_str( ) ) )
 		{
 			Logs( "%s Dump success %ls\n", __FUNCTION__, m_strDumpFullFilePath.c_str( ) );
 		}
@@ -404,7 +404,7 @@ void ScyllaContext::dumpFixActionHandler( )
 
 	if ( Config::IAT_FIX_AND_OEP_FIX )
 	{
-		importRebuild.setEntryPointRva( static_cast<std::uint32_t>( m_entrypoint - ProcessAccessHelp::uTargetImageBase ) );
+		importRebuild.setEntryPointRva( static_cast<std::uint32_t>( m_uEntryPoint - ProcessAccessHelp::uTargetImageBase ) );
 	}
 
 	if ( Config::OriginalFirstThunk_SUPPORT )
@@ -425,8 +425,8 @@ void ScyllaContext::dumpFixActionHandler( )
 	{
 		importRebuild.pIatReferenceScan = &m_iatReferenceScan;
 
-		std::uintptr_t uAddressIAT = m_addressIAT;
-		std::uint32_t uSizeIAT = m_sizeIAT;
+		std::uintptr_t uAddressIAT = m_uAddressIAT;
+		std::uint32_t uSizeIAT = m_uSizeIAT;
 
 		importRebuild.enableNewIatInSection( uAddressIAT, uSizeIAT );
 	}
@@ -445,8 +445,8 @@ void ScyllaContext::dumpFixActionHandler( )
 
 void ScyllaContext::setDialogIATAddressAndSize( std::uintptr_t uAddressIAT, std::uint32_t uSizeIAT )
 {
-	m_addressIAT = uAddressIAT;
-	m_sizeIAT = uSizeIAT;
+	m_uAddressIAT = uAddressIAT;
+	m_uSizeIAT = uSizeIAT;
 
 	wchar_t stringBuffer[ 256 ] = { 0 };
 
@@ -456,7 +456,7 @@ void ScyllaContext::setDialogIATAddressAndSize( std::uintptr_t uAddressIAT, std:
 
 void ScyllaContext::iatAutosearchActionHandler( )
 {
-	std::uintptr_t searchAddress = m_entrypoint;
+	std::uintptr_t searchAddress = m_uEntryPoint;
 	std::uintptr_t uAddressIAT = 0, addressIATAdv = 0;
 	std::uint32_t uSizeIAT = 0, sizeIATAdv = 0;
 	IATSearch iatSearch { };
@@ -528,10 +528,10 @@ void ScyllaContext::getImportsActionHandler( )
 	if ( !m_processPtr.PID )
 		return;
 
-	if ( !m_addressIAT || !m_sizeIAT )
+	if ( !m_uAddressIAT || !m_uSizeIAT )
 		return;
 
-	m_apiReader.readAndParseIAT( m_addressIAT, m_sizeIAT, m_importsHandling.vModuleList );
+	m_apiReader.readAndParseIAT( m_uAddressIAT, m_uSizeIAT, m_importsHandling.vModuleList );
 
 	m_importsHandling.scanAndFixModuleList( );
 
@@ -543,7 +543,7 @@ void ScyllaContext::getImportsActionHandler( )
 		m_iatReferenceScan.ScanForDirectImports = true;
 		m_iatReferenceScan.ScanForNormalImports = false;
 		m_iatReferenceScan.apiReader = &m_apiReader;
-		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), m_addressIAT, m_sizeIAT );
+		m_iatReferenceScan.startScan( ProcessAccessHelp::uTargetImageBase, static_cast<std::uint32_t>( ProcessAccessHelp::uTargetSizeOfImage ), m_uAddressIAT, m_uSizeIAT );
 
 		Logs( "%s DIRECT IMPORTS - Found %d possible direct imports with %d unique APIs!\n", __FUNCTION__, m_iatReferenceScan.numberOfFoundDirectImports( ), m_iatReferenceScan.numberOfFoundUniqueDirectImports( ) );
 
@@ -555,9 +555,9 @@ void ScyllaContext::getImportsActionHandler( )
 
 				std::uint32_t sizeIatNew = m_iatReferenceScan.addAdditionalApisToList( );
 
-				Logs( "%s DIRECT IMPORTS - Old IAT size 0x%08X new IAT size 0x%08X!\n", __FUNCTION__, m_sizeIAT, sizeIatNew );
+				Logs( "%s DIRECT IMPORTS - Old IAT size 0x%08X new IAT size 0x%08X!\n", __FUNCTION__, m_uSizeIAT, sizeIatNew );
 
-				m_sizeIAT = sizeIatNew;
+				m_uSizeIAT = sizeIatNew;
 
 				m_importsHandling.scanAndFixModuleList( );
 				m_importsHandling.displayAllImports( );
@@ -594,7 +594,7 @@ void ScyllaContext::getImportsActionHandler( )
 	}
 
 
-	if ( isIATOutsidePeImage( m_addressIAT ) )
+	if ( isIATOutsidePeImage( m_uAddressIAT ) )
 	{
 		Logs( "%s WARNING! IAT is not inside the PE image, requires rebasing!\n", __FUNCTION__ );
 	}

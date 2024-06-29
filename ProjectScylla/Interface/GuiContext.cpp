@@ -1,16 +1,36 @@
 #include "GuiContext.h"
 #include "../Tools/Utils.h"
 
-GuiContext::GuiContext( glWindow* pWindow ) : pWindowInstance( pWindow )
+GuiContext::GuiContext( glWindow* pWindow ) : m_pWindowInstance( pWindow )
 {
-    scyllaCtx = std::make_unique<ScyllaContext>( );
-    processesIcons = std::make_unique<IconList>( L".exe" );
-    strOEP = std::string( 17, '\0' );
-    strVA = std::string( 17, '\0' );
-    strSize = std::string( 17, '\0' );
+    m_scyllaCtx = std::make_unique<ScyllaContext>( );
+    m_processesIcons = std::make_unique<IconList>( L".exe" );
+    m_strOEP = std::string( 17, '\0' );
+    m_strVA = std::string( 17, '\0' );
+    m_strSize = std::string( 17, '\0' );
 }
 
 GuiContext::~GuiContext( ) = default;
+
+void GuiContext::getIatHexString( ) {
+
+    size_t szSize = 16;
+#ifdef _WIN64
+    auto OEPstr = std::format( "{:016X}", m_scyllaCtx->m_uEntryPoint );
+
+    auto VAstr = std::format( "{:016X}", m_scyllaCtx->m_uAddressIAT );
+#else
+    szSize = 8;
+    auto OEPstr = std::format( "{:08X}", scyllaCtx->m_uEntryPoint );
+
+    auto VAstr = std::format( "{:08X}", scyllaCtx->m_uAddressIAT );
+#endif // _WIN64
+    auto VASizeStr = std::format( "{:08X}", m_scyllaCtx->m_uSizeIAT );
+
+    std::memcpy( m_strOEP.data( ), OEPstr.data( ), szSize );
+    std::memcpy( m_strVA.data( ), VAstr.data( ), szSize );
+    std::memcpy( m_strSize.data( ), VASizeStr.data( ), szSize );
+}
 
 void GuiContext::DisplayFilter( const std::string& filterTitle, std::string& outFilter, ImVec2 Size, bool bWithBeginChild ) {
 
@@ -109,7 +129,6 @@ void GuiContext::DrawIconFontStatus( ImVec2 incPos, float size, int index ) {
     //ImGui::SameLine( );
 }
 
-
 void GuiContext::Render( ) {
 
     static ImGuiWindow* window = nullptr;
@@ -129,19 +148,19 @@ void GuiContext::Render( ) {
         // https://fontawesome.com/v6/search?o=r&m=free
 
 
-        ImGui::AddTab( "Processes", PCHR( Target ), pWindowInstance->getFont( 1 ) );
-        ImGui::AddTab( "Modules", PCHR( Sitemap ), pWindowInstance->getFont( 1 ) );
-        ImGui::AddTab( "OEP & IAT", PCHR( Flask ), pWindowInstance->getFont( 1 ) );
-        ImGui::AddTab( "Config", PCHR( Gear ), pWindowInstance->getFont( 1 ) );
+        ImGui::AddTab( "Processes", PCHR( Target ), m_pWindowInstance->getFont( 1 ) );
+        ImGui::AddTab( "Modules", PCHR( Sitemap ), m_pWindowInstance->getFont( 1 ) );
+        ImGui::AddTab( "OEP & IAT", PCHR( Flask ), m_pWindowInstance->getFont( 1 ) );
+        ImGui::AddTab( "Config", PCHR( Gear ), m_pWindowInstance->getFont( 1 ) );
 
 
-        pWindowInstance->setFramePos( 0.f, 0.f );
-        pWindowInstance->setSize( 700, 700 );
-        pWindowInstance->center( );
+        m_pWindowInstance->setFramePos( 0.f, 0.f );
+        m_pWindowInstance->setSize( 700, 700 );
+        m_pWindowInstance->center( );
     }
 
-    ImGui::SetNextWindowPos( { 0, pWindowInstance->getFramePos( ).y } ); // ImGuiCond_FirstUseEver
-    ImGui::SetNextWindowSize( pWindowInstance->getSize( ) );
+    ImGui::SetNextWindowPos( { 0, m_pWindowInstance->getFramePos( ).y } ); // ImGuiCond_FirstUseEver
+    ImGui::SetNextWindowSize( m_pWindowInstance->getSize( ) );
 
     auto window_flags = 0;
     window_flags |= ImGuiWindowFlags_NoScrollbar;
@@ -151,20 +170,30 @@ void GuiContext::Render( ) {
     window_flags |= ImGuiWindowFlags_NoCollapse;
     //window_flags |= ImGuiWindowFlags_NoTitleBar;
 
+
     if ( ImGui::Begin( "aaah", nullptr, window_flags ) )
     {
-        //ImGui::NewLine( );
-        //ImGui::SameLine( 100.f );
-        //ImGui::LoadingIndicatorCircle( "#bLoading", 20, ImGui::GetStyleColorVec4( ImGuiCol_ButtonHovered ), ImGui::GetStyleColorVec4( ImGuiCol_Button ), 10, 5.f );
-        //ImGui::BeginDisabled( true );
+        auto vPos = ImGui::GetCurrentWindow( )->DC.CursorPos;
+        if ( m_lockInterface )
+        {
+            //vPos = ImVec2( 0.f, 0.f );
+            float fRadiusSize = 60.f;
+            ImGui::LoadingIndicatorCircle( "#bLoading",
+                vPos
+                + ImVec2( ImGui::GetWindowWidth( ) / 2.f, ImGui::GetWindowHeight( ) / 2.f )
+                + ImVec2( -( fRadiusSize + ImGui::GetStyle( ).WindowPadding.x ), -fRadiusSize ),
+                fRadiusSize,
+                ImGui::GetStyleColorVec4( ImGuiCol_ButtonHovered ),
+                ImGui::GetStyleColorVec4( ImGuiCol_ButtonHovered ), 10, 5.f );
+        }
 
-
+        ImGui::BeginDisabled( m_lockInterface );
 
         ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
-        ImGui::DisplayTabs( pWindowInstance->getSize( ).x );
+        ImGui::DisplayTabs( m_pWindowInstance->getSize( ).x );
         ImGui::PopStyleVar( );
 
-        if ( ImGui::BeginChild( "##tabs", ImVec2( pWindowInstance->getSize( ).x - 16.f, 400.f ), true,
+        if ( ImGui::BeginChild( "##tabs", ImVec2( m_pWindowInstance->getSize( ).x - 16.f, 400.f ), true,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
         {
             while ( true )
@@ -236,34 +265,56 @@ void GuiContext::Render( ) {
 
 
             ImGui::BeginGroup( );
-
-            DrawInputText( "OEP:", strOEP.data( ), strOEP.size( ) );
+            DrawInputText( "OEP:", m_strOEP.data( ), m_strOEP.size( ) );
             ImGui::Dummy( ImVec2( 0.f, 1.f ) );
-            DrawInputText( "VA:", strVA.data( ), strVA.size( ) );
+            DrawInputText( "VA:", m_strVA.data( ), m_strVA.size( ) );
             ImGui::Dummy( ImVec2( 0.f, 1.f ) );
-            DrawInputText( "Size:", strSize.data( ), strSize.size( ) );
-
+            DrawInputText( "Size:", m_strSize.data( ), m_strSize.size( ) );
             ImGui::EndGroup( );
-
-            /// Utils::uintPtrToHex(
 
             ImGui::SameLine( 210.f );
             ImGui::BeginGroup( );
             if ( ImGui::Button( "IAT AutoSearch", ImVec2( 120.f, 34.f ) ) ) {
-                scyllaCtx->m_entrypoint = Utils::hexToUintPtr( strOEP );
+                m_scyllaCtx->m_uEntryPoint = Utils::hexToUintPtr( m_strOEP );
+
+                m_lockInterface = true;
 
                 std::thread( [ & ]( )
                     {
-                        scyllaCtx->iatAutosearchActionHandler( );
+                        m_scyllaCtx->iatAutosearchActionHandler( );
+
+                        getIatHexString( );
+
+                        m_lockInterface = false;
+
                     } ).detach( );
             }
             ImGui::Dummy( ImVec2( 0.f, 1.f ) );
             if ( ImGui::Button( "Get Imports", ImVec2( 120.f, 34.f ) ) )
             {
-                scyllaCtx->m_entrypoint = Utils::hexToUintPtr( strOEP );
-                scyllaCtx->m_addressIAT = Utils::hexToUintPtr( strVA );
-                scyllaCtx->m_sizeIAT = static_cast<std::uint32_t>( Utils::hexToUintPtr( strSize ) );
-                scyllaCtx->getImportsActionHandler( );
+                auto uEntryPoint = Utils::hexToUintPtr( m_strOEP );
+                auto uAddressIAT = Utils::hexToUintPtr( m_strVA );
+                auto uSizeIAT    = static_cast<std::uint32_t>( Utils::hexToUintPtr( m_strSize ) );
+
+                if ( uAddressIAT != 0 && uSizeIAT != 0 ) {
+
+                    m_scyllaCtx->m_uEntryPoint = uEntryPoint;
+                    m_scyllaCtx->m_uAddressIAT = uAddressIAT;
+                    m_scyllaCtx->m_uSizeIAT = uSizeIAT;
+
+                    m_lockInterface = true;
+
+                    std::thread( [ & ]( )
+                        {
+                            m_scyllaCtx->getImportsActionHandler( );
+
+                            m_lockInterface = false;
+
+                        } ).detach( );
+
+                }
+
+
             }
             ImGui::EndGroup( );
 
@@ -282,9 +333,13 @@ void GuiContext::Render( ) {
             ImGui::Dummy( ImVec2( 0.f, 1.f ) );
             if ( ImGui::Button( "Dump", ImVec2( -1.f, 23.f ) ) )
             {
+                m_lockInterface = true;
+
                 std::thread( [ & ]( )
                     {
-                        scyllaCtx->dumpActionHandler( );
+                        m_scyllaCtx->dumpActionHandler( );
+
+                        m_lockInterface = false;
                     } ).detach( );
             }
             ImGui::Dummy( ImVec2( 0.f, 1.f ) );
@@ -306,18 +361,18 @@ void GuiContext::Render( ) {
         //    );
         //}
 
-        if ( ImGui::BeginChild( "##processInfo", ImVec2( pWindowInstance->getSize( ).x - 16.f, 70.f ), true ) )
+        if ( ImGui::BeginChild( "##processInfo", ImVec2( m_pWindowInstance->getSize( ).x - 16.f, 70.f ), true ) )
         {
-            std::string strProcess = ( currentProcess.PID != 0 ) ? std::format( "PID: {:04}, Name: {}",
-                currentProcess.PID,
-                Utils::wstrToStr( currentProcess.pFileName ) ) : "No process selected";
+            std::string strProcess = ( m_currentProcess.PID != 0 ) ? std::format( "PID: {:04}, Name: {}",
+                m_currentProcess.PID,
+                Utils::wstrToStr( m_currentProcess.pFileName ) ) : "No process selected";
 
             ImGui::Text( strProcess.c_str( ) );
 
-            if ( currentProcess.PID )
+            if ( m_currentProcess.PID )
             {
-                std::string strModule = ( currentModule.uModBase != 0 ) ? std::format( "Module: {}",
-                    Utils::wstrToStr( currentModule.pModulePath ) ) : "No module selected";
+                std::string strModule = ( m_currentModule.uModBase != 0 ) ? std::format( "Module: {}",
+                    Utils::wstrToStr( m_currentModule.pModulePath ) ) : "No module selected";
 
                 ImGui::Text( strModule.c_str( ) );
             }
@@ -325,8 +380,7 @@ void GuiContext::Render( ) {
             ImGui::EndChild( );
         }
 
-
-        //ImGui::EndDisabled( );
+        ImGui::EndDisabled( );
 
         ImGui::End( );
     }
@@ -343,20 +397,20 @@ void GuiContext::Render( ) {
 
                 //scyllaCtx->setProcessById( GetCurrentProcessId( ) );
                 //scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
-                auto status = scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
+                auto status = m_scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
 
                 if ( status == 0 )
                 {
-                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+                    m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
 
                     if ( !ProcessAccessHelp::vModuleList.empty( ) )
                     {
-                        currentModule = ProcessAccessHelp::vModuleList[ 0 ];
+                        m_currentModule = ProcessAccessHelp::vModuleList[ 0 ];
                     }
 
-                    scyllaCtx->getImportsActionHandler( );
+                    m_scyllaCtx->getImportsActionHandler( );
 
-                    currentProcess = *scyllaCtx->getCurrentProcess( );
+                    m_currentProcess = *m_scyllaCtx->getCurrentProcess( );
 
                     ImGui::SetActiveTabIndex( 2 );
                 }

@@ -11,11 +11,11 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
         ImGui::GetWindowWidth( ) - ( ImGui::GetStyle( ).WindowPadding.x * 2.f ),
         fHeightFilter ), false );
 
-    auto& vModuleList = scyllaCtx->getApiReader( )->vModuleList;
+    auto& vModuleList = m_scyllaCtx->getApiReader( )->vModuleList;
 
     auto itModule = std::find_if( vModuleList.begin( ), vModuleList.end( ), 
         [ & ]( ModuleInfo& m_Module ) {
-			return m_Module.uModBase == uSelectedModuleImportBase;
+			return m_Module.uModBase == m_uSelectedModuleImportBase;
 		} );
 
     auto bValidSelected = itModule != vModuleList.end( );
@@ -42,12 +42,12 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
             if ( !strSwapModuleFilter.empty( ) && lowerModuleName.find( lowerSwapModuleFilter ) == std::string::npos )
                 continue;
 
-            if ( ImGui::Selectable( strModuleName.c_str( ), uSelectedModuleImportBase == moduleInfo.uModBase ) )
+            if ( ImGui::Selectable( strModuleName.c_str( ), m_uSelectedModuleImportBase == moduleInfo.uModBase ) )
             {
-                uSelectedModuleImportBase = moduleInfo.uModBase;
+                m_uSelectedModuleImportBase = moduleInfo.uModBase;
             }
 
-            if ( uSelectedModuleImportBase == moduleInfo.uModBase )
+            if ( m_uSelectedModuleImportBase == moduleInfo.uModBase )
                 ImGui::SetItemDefaultFocus( );
         }
 
@@ -85,11 +85,11 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
             if ( !strSwapFunctionName.empty( ) && lowerFunctionName.find( lowerSwapFunctionName ) == std::string::npos )
                 continue;
 
-            bool isSelected = ( nSelectedImportKey == apiInfo->uRVA );
+            bool isSelected = ( m_uSelectedImportKey == apiInfo->uRVA );
 
             if ( ImGui::Selectable( strFunctionName.c_str( ), isSelected ) )
             {
-                nSelectedImportKey = apiInfo->uRVA;
+                m_uSelectedImportKey = apiInfo->uRVA;
             }
 
             if ( isSelected )
@@ -97,26 +97,26 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
         }
         ImGui::EndChild( );
 
-        if ( nSelectedImportKey != 0 )
+        if ( m_uSelectedImportKey != 0 )
         {
             if ( ImGui::Button( "Apply", ImVec2( -1.f, 20.f ) ) )
             {
                 auto itApiInfo = std::find_if( itModule->vApiList.begin( ), itModule->vApiList.end( ),
                     [ & ]( ApiInfo* api ) {
-                        return api->uRVA == nSelectedImportKey;
+                        return api->uRVA == m_uSelectedImportKey;
                     } );
 
                 if ( itApiInfo != itModule->vApiList.end( ) )
                 {
                     auto pApiInfo = *itApiInfo;
 
-                    scyllaCtx->getImportsHandling( )->
+                    m_scyllaCtx->getImportsHandling( )->
                         setImport( importThunk, pApiInfo->pModule->getFilename( ),
                             pApiInfo->name, pApiInfo->uOrdinal, pApiInfo->uHint, true, pApiInfo->isForwarded );
                 }
 
-                uSelectedModuleImportBase = 0;
-                nSelectedImportKey = 0;
+                m_uSelectedModuleImportBase = 0;
+                m_uSelectedImportKey = 0;
                 ImGui::CloseCurrentPopup( );
                 return true;
             }
@@ -128,7 +128,7 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
  
 bool GuiContext::IatTab( )
 {
-    if ( currentProcess.PID == 0 ||
+    if ( m_currentProcess.PID == 0 ||
         !ProcessAccessHelp::hProcess ||
         ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE )
     {
@@ -136,7 +136,7 @@ bool GuiContext::IatTab( )
         return false;
     }
 
-    if ( currentModule.uModBase == 0 )
+    if ( m_currentModule.uModBase == 0 )
     {
 		ImGui::SetActiveTabIndex( 1 );
         return false;
@@ -149,7 +149,7 @@ bool GuiContext::IatTab( )
     if ( ImGui::BeginChild( "IAT", ImVec2( fInnerWidth, fInnerHeight - 100.f ), true, ImGuiWindowFlags_HorizontalScrollbar ) )
     { 
         int nModuleItems = -1;
-        for ( auto& [key, moduleThunk] : scyllaCtx->getImportsHandling( )->vModuleList )
+        for ( auto& [key, moduleThunk] : m_scyllaCtx->getImportsHandling( )->vModuleList )
         {
             ++nModuleItems;
             std::string strModuleName = std::format( "\t  {} ({}) FThunk: {:08X}",
@@ -165,12 +165,12 @@ bool GuiContext::IatTab( )
                 {
                     if ( ImGui::MenuItem( "Ivalidade" ) )
                     {
-                        scyllaCtx->getImportsHandling( )->invalidateModule( &moduleThunk );
+                        m_scyllaCtx->getImportsHandling( )->invalidateModule( &moduleThunk );
                     }
 
                     if ( ImGui::MenuItem( "Cut Module" ) )
                     {
-                        scyllaCtx->getImportsHandling( )->cutModule( &moduleThunk );
+                        m_scyllaCtx->getImportsHandling( )->cutModule( &moduleThunk );
                         ImGui::EndPopup( );
                         ImGui::TreePop( );
                         break; // prevent crash
@@ -211,12 +211,12 @@ bool GuiContext::IatTab( )
                 {
                     if ( ImGui::MenuItem( "Ivalidade" ) )
                     {
-                        scyllaCtx->getImportsHandling( )->invalidateImport( pSelectedImport );
+                        m_scyllaCtx->getImportsHandling( )->invalidateImport( pSelectedImport );
                     }
 
                     if ( ImGui::MenuItem( "Cut Thunk" ) )
                     {
-                        scyllaCtx->getImportsHandling( )->cutImport( pSelectedImport );
+                        m_scyllaCtx->getImportsHandling( )->cutImport( pSelectedImport );
                         ImGui::EndPopup( );
                         break; // prevent crash
                     }
@@ -257,11 +257,11 @@ bool GuiContext::IatTab( )
                     auto clickPopSelectImport = [ & ]( ) {
 
                             pSelectedImport = &importThunk;
-                            uSelectedModuleImportBase = 0;
-                            nSelectedImportKey = 0;
+                            m_uSelectedModuleImportBase = 0;
+                            m_uSelectedImportKey = 0;
                             if ( moduleThunk.isValid( ) )
                             {
-                                auto& vModuleList = scyllaCtx->getApiReader( )->vModuleList;
+                                auto& vModuleList = m_scyllaCtx->getApiReader( )->vModuleList;
 
                                 auto itModule = std::find_if( vModuleList.begin( ), vModuleList.end( ),
                                     [ & ]( ModuleInfo& m_Module ) {
@@ -272,7 +272,7 @@ bool GuiContext::IatTab( )
                                     } );
 
                                 if ( itModule != vModuleList.end( ) )
-                                    uSelectedModuleImportBase = itModule->uModBase;
+                                    m_uSelectedModuleImportBase = itModule->uModBase;
                             };
                         };
 

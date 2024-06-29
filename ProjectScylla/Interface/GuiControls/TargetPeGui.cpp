@@ -3,7 +3,7 @@
 
 bool GuiContext::ModulesTab( ) {
 
-    if ( currentProcess.PID == 0 || 
+    if ( m_currentProcess.PID == 0 || 
         !ProcessAccessHelp::hProcess ||
         ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE )
     {
@@ -63,7 +63,7 @@ bool GuiContext::ModulesTab( ) {
 					continue;
 
 
-                auto& vReaderModuleList = scyllaCtx->getApiReader( )->vModuleList;
+                auto& vReaderModuleList = m_scyllaCtx->getApiReader( )->vModuleList;
 
                 auto itReaderModule = std::find_if( vReaderModuleList.begin( ), vReaderModuleList.end( ), 
                     [ & ]( ModuleInfo& m_Module ) {
@@ -75,7 +75,7 @@ bool GuiContext::ModulesTab( ) {
 
                 const auto strFmt = std::format( "\t0x{:016X} {} - Exports ({})", pModuleInfo.uModBase, Utils::wstrToStr( pModuleInfo.getFilename( ) ), ApiListSize );
 
-                const bool isSelected = ( currentModule.uModBase != 0 ) ? ( currentModule.uModBase == pModuleInfo.uModBase ) : false;
+                const bool isSelected = ( m_currentModule.uModBase != 0 ) ? ( m_currentModule.uModBase == pModuleInfo.uModBase ) : false;
 
                 if ( isSelected )
                 {
@@ -97,28 +97,19 @@ bool GuiContext::ModulesTab( ) {
                 ImGui::SameLine( iconSize.x + 16.f );
                 ImGui::PushStyleVar( ImGuiStyleVar_ButtonTextAlign, ImVec2( 0.f, 0.56f ) );
                 if ( ImGui::Button( strFmt.c_str( ), { fBtnWidth - ( iconSize.x + 8.f ), 25.f } ) ) {
-                    currentModule = pModuleInfo;
+                    m_currentModule = pModuleInfo;
 
-                    scyllaCtx->setTargetModule( currentModule.uModBase, currentModule.uModBaseSize, currentModule.pModulePath );
+                    m_lockInterface = true;
 
-#ifdef _WIN64
-                    auto OEPstr = std::format( "{:016X}", scyllaCtx->m_entrypoint );
+                    m_scyllaCtx->setTargetModule( m_currentModule.uModBase, m_currentModule.uModBaseSize, m_currentModule.pModulePath );
 
-                    auto VAstr = std::format( "{:016X}", scyllaCtx->m_addressIAT );
-#else
-                    auto OEPstr = std::format( "{:08X}", scyllaCtx->m_entrypoint );
+                    getIatHexString( );
 
-                    auto VAstr = std::format( "{:08X}", scyllaCtx->m_addressIAT );
-#endif // _WIN64
-                    auto VASizeStr = std::format( "{:08X}", scyllaCtx->m_sizeIAT );
-
-                    std::memcpy( strOEP.data( ), OEPstr.data( ), 16 );
-                    std::memcpy( strVA.data( ), VAstr.data( ), 16 );
-                    std::memcpy( strSize.data( ), VASizeStr.data( ), 16 );
-
-                    scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+                    m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
 
                     ImGui::SetActiveTabIndex( 2 );
+
+                    m_lockInterface = false;
                 }
                 ImGui::PopStyleVar( );
                 if ( isSelected )

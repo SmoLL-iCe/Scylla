@@ -310,7 +310,7 @@ ImVec4 ImGui::Hex2FloatColor( uint32_t hex_color, const float a )
 	return { r, g, b, a };
 }
 
-void ImGui::LoadingIndicatorCircle( const char* label, const float indicator_radius,
+void ImGui::LoadingIndicatorCircle( const char* label, ImVec2 pos, const float indicator_radius,
 	const ImVec4& main_color, const ImVec4& backdrop_color,
 	const int circle_count, const float speed )
 {
@@ -325,17 +325,20 @@ void ImGui::LoadingIndicatorCircle( const char* label, const float indicator_rad
 
 	const ImGuiStyle& style = g.Style;
 
-	const ImVec2 pos = window->DC.CursorPos;
+	//ImVec2 pos = window->DC.CursorPos;
 	const float circle_radius = indicator_radius / 10.0f;
 	const ImRect bb( pos, ImVec2( pos.x + indicator_radius * 2.0f,
 		pos.y + indicator_radius * 2.0f ) );
-	ItemSize( bb, style.FramePadding.y );
-	if ( !ItemAdd( bb, id ) )
-	{
-		return;
-	}
+
+	//ItemSize( bb, style.FramePadding.y );
+	//if ( !ItemAdd( bb, id ) )
+	//{
+	//	return;
+	//}
+
 	const float t = static_cast<float>( g.Time );
 	const auto degree_offset = 2.0f * IM_PI / circle_count;
+
 	for ( int i = 0; i < circle_count; ++i )
 	{
 		const auto x = indicator_radius * std::sin( degree_offset * i );
@@ -346,6 +349,7 @@ void ImGui::LoadingIndicatorCircle( const char* label, const float indicator_rad
 		color.y = main_color.y * growth + backdrop_color.y * ( 1.0f - growth );
 		color.z = main_color.z * growth + backdrop_color.z * ( 1.0f - growth );
 		color.w = 1.0f;
+
 		window->DrawList->AddCircleFilled( ImVec2( pos.x + indicator_radius + x,
 			pos.y + indicator_radius - y ),
 			circle_radius + growth * circle_radius,

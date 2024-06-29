@@ -29,9 +29,9 @@ public:
 	int setProcessById( std::uint32_t uProcessId );
 	void setDefaultFolder( const std::wstring& strNewFolder );
 
-	std::uintptr_t m_entrypoint = 0;
-	std::uintptr_t m_addressIAT;
-	std::uint32_t m_sizeIAT;
+	std::uintptr_t m_uEntryPoint = 0;
+	std::uintptr_t m_uAddressIAT;
+	std::uint32_t m_uSizeIAT;
 	ImportsHandling* getImportsHandling( );
 	ApiReader* getApiReader( );
 	Process * getCurrentProcess( );
