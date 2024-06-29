@@ -244,7 +244,8 @@ bool ImportsHandling::cutImport( ImportThunk* pImport )
 
 bool ImportsHandling::cutModule( ImportModuleThunk* pModule )
 {
-	if ( !pModule ) return false;
+	if ( !pModule ) 
+		return false;
 
 	vModuleList.erase( pModule->uKey );
 
@@ -282,6 +283,7 @@ void ImportsHandling::scanAndFixModuleList( )
 	}
 
 	vModuleList = std::move( mpModuleListNew );
+
 	mpModuleListNew.clear( );
 }
 
@@ -299,6 +301,7 @@ bool ImportsHandling::addModuleToModuleList( const wchar_t* pModuleName, std::ui
 	wcscpy_s( ModuleThunk.pModuleName, pModuleName );
 
 	ModuleThunk.uKey = ModuleThunk.uFirstThunk;
+
 	mpModuleListNew[ ModuleThunk.uKey ] = std::move( ModuleThunk );
 	return true;
 }

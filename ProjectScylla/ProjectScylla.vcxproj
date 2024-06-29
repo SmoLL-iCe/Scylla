@@ -164,9 +164,14 @@
     <ClCompile Include="ImportRebuilder.cpp" />
     <ClCompile Include="ImportsHandling.cpp" />
     <ClCompile Include="Interface\CreateWindow.cpp" />
-    <ClCompile Include="Interface\FrmMain.cpp" />
+    <ClCompile Include="Interface\GuiContext.cpp" />
+    <ClCompile Include="Interface\GuiControls\ConfigGui.cpp" />
+    <ClCompile Include="Interface\GuiControls\ImportGui.cpp" />
+    <ClCompile Include="Interface\GuiControls\ProcessGui.cpp" />
+    <ClCompile Include="Interface\GuiControls\TargetPeGui.cpp" />
     <ClCompile Include="Interface\IconList.cpp" />
     <ClCompile Include="Interface\imgui_custom.cpp" />
+    <ClCompile Include="Interface\Interface.cpp" />
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui.cpp" />
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui_draw.cpp" />
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui_impl_glfw.cpp" />
@@ -206,9 +211,10 @@
     <ClInclude Include="ImportRebuilder.h" />
     <ClInclude Include="ImportsHandling.h" />
     <ClInclude Include="Interface\CreateWindow.h" />
-    <ClInclude Include="Interface\FrmMain.h" />
+    <ClInclude Include="Interface\GuiContext.h" />
     <ClInclude Include="Interface\IconList.h" />
     <ClInclude Include="Interface\imgui_custom.h" />
+    <ClInclude Include="Interface\Interface.h" />
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3.h" />
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3native.h" />
     <ClInclude Include="Interface\Thirdparty\ImGui\imgui.h" />

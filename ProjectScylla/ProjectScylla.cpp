@@ -1,7 +1,7 @@
 
 #include "ScyllaContext.h"
 #include <iostream>
-#include "Interface/FrmMain.h"
+#include "Interface/Interface.h"
 
 int main()
 {

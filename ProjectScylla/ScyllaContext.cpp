@@ -431,7 +431,6 @@ void ScyllaContext::dumpFixActionHandler( )
 		importRebuild.enableNewIatInSection( uAddressIAT, uSizeIAT );
 	}
 
-
 	if ( importRebuild.rebuildImportTable( this->m_strDumpFullFilePathScy.c_str( ), m_importsHandling.vModuleList ) )
 	{
 		Logs( "%s Import Rebuild success %ls\n", __FUNCTION__, this->m_strDumpFullFilePathScy.c_str( ) );

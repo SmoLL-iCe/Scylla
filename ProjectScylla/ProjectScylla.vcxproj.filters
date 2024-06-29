@@ -39,6 +39,9 @@
     <Filter Include="Tools">
       <UniqueIdentifier>{fd08295d-b5d0-4faa-be24-eed1654ab718}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Interface\GuiControls">
+      <UniqueIdentifier>{04b60df0-1c15-47fe-b8bf-28a584a415c6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ProjectScylla.cpp">
@@ -116,9 +119,6 @@
     <ClCompile Include="Interface\CreateWindow.cpp">
       <Filter>Interface</Filter>
     </ClCompile>
-    <ClCompile Include="Interface\FrmMain.cpp">
-      <Filter>Interface</Filter>
-    </ClCompile>
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui.cpp">
       <Filter>Interface\Thirdparty\ImGui</Filter>
     </ClCompile>
@@ -151,6 +151,24 @@
     </ClCompile>
     <ClCompile Include="Interface\IconList.cpp">
       <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\GuiContext.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\GuiControls\ImportGui.cpp">
+      <Filter>Interface\GuiControls</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\GuiControls\ProcessGui.cpp">
+      <Filter>Interface\GuiControls</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\GuiControls\TargetPeGui.cpp">
+      <Filter>Interface\GuiControls</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\Interface.cpp">
+      <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="Interface\GuiControls\ConfigGui.cpp">
+      <Filter>Interface\GuiControls</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -241,9 +259,6 @@
     <ClInclude Include="Interface\CreateWindow.h">
       <Filter>Interface</Filter>
     </ClInclude>
-    <ClInclude Include="Interface\FrmMain.h">
-      <Filter>Interface</Filter>
-    </ClInclude>
     <ClInclude Include="Interface\Thirdparty\ImGui\imgui.h">
       <Filter>Interface\Thirdparty\ImGui</Filter>
     </ClInclude>
@@ -290,6 +305,12 @@
       <Filter>Interface\Thirdparty\ImGui</Filter>
     </ClInclude>
     <ClInclude Include="Interface\IconList.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\GuiContext.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Interface\Interface.h">
       <Filter>Interface</Filter>
     </ClInclude>
   </ItemGroup>

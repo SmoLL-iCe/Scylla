@@ -29,6 +29,7 @@ public:
 	int setProcessById( std::uint32_t uProcessId );
 	void setDefaultFolder( const std::wstring& strNewFolder );
 
+	std::uintptr_t m_entrypoint = 0;
 	std::uintptr_t m_addressIAT;
 	std::uint32_t m_sizeIAT;
 	ImportsHandling* getImportsHandling( );
@@ -51,7 +52,6 @@ private:
 
 	int Status = 0;
 
-	std::uintptr_t m_entrypoint = 0;
 
 	bool m_bIsModule = false;
 

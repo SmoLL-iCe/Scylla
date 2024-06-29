@@ -30,4 +30,8 @@ namespace ImGui
 	void BeginChildList( int id, float fWidth, float fHeight, std::function<void( )> code );
 
 	ImVec4 Hex2FloatColor( uint32_t hex_color, const float a = 1.f );
+
+	void LoadingIndicatorCircle( const char* label, const float indicator_radius,
+		const ImVec4& main_color, const ImVec4& backdrop_color,
+		const int circle_count, const float speed );
 }
