@@ -1,7 +1,7 @@
 #include "IATSearch.h"
 #include "Architecture.h"
 #include "Tools/Logs.h"
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 
 bool IATSearch::searchImportAddressTableInProcess( std::uintptr_t uStartAddress, std::uintptr_t* uAddressIAT, std::uint32_t* uSizeIAT, bool advanced ) {
 	if ( advanced ) {

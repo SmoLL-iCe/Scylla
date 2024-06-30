@@ -7,7 +7,7 @@
 #include "PeParser.h"
 #include "Tools/Logs.h"
 #include <span>
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 
 #undef min
 #undef max

@@ -1,13 +1,13 @@
 
 #include "ProcessAccessHelp.h"
 #include "PeParser.h"
-#include <Psapi.h>
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
 #include "Tools/Logs.h"
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 #include "Architecture.h"
 #include "ProcessLister.h"
+#include "WinApi/RemoteModule.h"
 
 HANDLE ProcessAccessHelp::hProcess = 0;
 
@@ -509,8 +509,6 @@ std::uint32_t ProcessAccessHelp::getProcessByName( const wchar_t* processName )
 
 bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleInfo>& vModuleList )
 {
-	DeviceNameResolver pDeviceNameResolver;
-
 	vModuleList.clear( );
 	vModuleList.reserve( 20 );
 
@@ -543,19 +541,14 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 			Module.isAlreadyParsed = false;
 			Module.parsing = false;
 
-			wchar_t pFileName[ MAX_PATH * 2 ] = { 0 };
+			auto wstrFullModulePath = RemoteModule::GetFullModulePathFromBase( 
+				hProcess, 
+				reinterpret_cast<HMODULE>( meModuleEntry.modBaseAddr ), 
+				archType == PROCESS_64 );
 
-			pFileName[ 0 ] = 0;
-
-			if ( GetMappedFileNameW( hProcess, reinterpret_cast<LPVOID>( Module.uModBase ), pFileName, _countof( pFileName ) ) > 0 )
+			if ( !wstrFullModulePath.empty( ) )
 			{
-				if ( !pDeviceNameResolver.resolveDeviceLongNameToShort( pFileName, Module.pModulePath ) )
-				{
-					if ( !GetModuleFileNameExW( hProcess, reinterpret_cast<HMODULE>( meModuleEntry.modBaseAddr ), Module.pModulePath, _countof( Module.pModulePath ) ) )
-					{
-						wcscpy_s( Module.pModulePath, pFileName );
-					}
-				}
+				wcscpy_s( Module.pModulePath, wstrFullModulePath.data( ) );
 			}
 
 			vModuleList.push_back( Module );
@@ -563,13 +556,10 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 		} while ( Module32NextW( hSnapshot, &meModuleEntry ) );
 	}
 
-	//Wow64EnableWow64FsRedirection( TRUE );
 	CloseHandle( hSnapshot );
 
 	return true;
 }
-
-
 
 bool ProcessAccessHelp::getMemoryRegionFromAddress( std::uintptr_t uAddress, std::uintptr_t* pMemoryRegionBase, std::size_t* pMemoryRegionSize )
 {
@@ -601,44 +591,12 @@ bool ProcessAccessHelp::getSizeOfImageCurrentProcess( )
 
 std::uint32_t ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, std::uintptr_t uModuleBase )
 {
-	std::size_t szOfImage = 0;
-	MEMORY_BASIC_INFORMATION mbiBuffer = { 0 };
-
 	std::size_t szOfImageNative = getSizeOfImageProcessNative( processHandle, uModuleBase );
 
 	if ( szOfImageNative )
 		return static_cast<std::uint32_t>( szOfImageNative );
 	
-
-	wchar_t pFileNameOriginal[ MAX_PATH * 2 ] = { 0 };
-	wchar_t pFileNameTest[ MAX_PATH * 2 ] = { 0 };
-
-	GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), pFileNameOriginal, _countof( pFileNameOriginal ) );
-
-	do
-	{
-		uModuleBase += mbiBuffer.RegionSize;
-		szOfImage += mbiBuffer.RegionSize;
-
-		if ( !ApiRemote::VirtualQueryEx( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), &mbiBuffer, sizeof( MEMORY_BASIC_INFORMATION ) ) )
-		{
-			LOGS_DEBUG( "getSizeOfImageProcess :: VirtualQuery failed %X", GetLastError( ) );
-
-			mbiBuffer.Type = 0;
-
-			szOfImage = 0;
-		}
-
-		GetMappedFileNameW( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), pFileNameTest, _countof( pFileNameTest ) );
-
-		if ( _wcsicmp( pFileNameOriginal, pFileNameTest ) != 0 ) // Problem: 2 modules without free space
-		{
-			break;
-		}
-
-	} while ( mbiBuffer.Type == MEM_IMAGE );
-
-	return static_cast<std::uint32_t>( szOfImage );
+	return static_cast<std::uint32_t>( RemoteModule::GetSizeOfModuleFromPage( processHandle, reinterpret_cast<void*>( uModuleBase ) ) );
 }
 
 std::uint32_t ProcessAccessHelp::getEntryPointFromFile( const wchar_t* pFilePath )

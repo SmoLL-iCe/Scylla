@@ -4,7 +4,7 @@
 #include "ProcessAccessHelp.h"
 #include <algorithm>
 #include "Tools/Logs.h"
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 #include <array> 
 #include "Tools/Utils.h"
 #include "WinApi/RemoteModule.h"
@@ -22,7 +22,7 @@ bool ProcessLister::isWindows64( )
 #else
     BOOL bIsWow64 = FALSE;
 
-    ApiTools::IsWow64Process( reinterpret_cast<HANDLE>( -1 ), &bIsWow64 );
+    ApiRemote::IsWow64Process( reinterpret_cast<HANDLE>( -1 ), &bIsWow64 );
 
     return ( bIsWow64 != FALSE );
 #endif
@@ -89,28 +89,20 @@ bool ProcessLister::getAbsoluteFilePath( HANDLE hProcess, Process* pProcess ) {
         return false;
     }
 
-    std::array<wchar_t, MAX_PATH> processPath {};
+    std::wstring strFullPath = RemoteModule::GetFullModulePathFromBase(
+        hProcess, 
+        reinterpret_cast<HMODULE>( pProcess->uImageBase ),
+        pProcess->archType == PROCESS_64
+    );
+
     wcscpy_s( pProcess->pModulePath, L"Unknown path" );
 
-    //some virtual volumes
-    if ( GetProcessImageFileNameW( hProcess, processPath.data( ), static_cast<DWORD>( processPath.size( ) ) ) > 0 ) {
+    if ( strFullPath.empty( ) )
+        return false;
 
-        if ( pDeviceNameResolver->resolveDeviceLongNameToShort( processPath.data( ), pProcess->pModulePath ) ) {
-            return true;
-        }
-        else {
-            LOGS_DEBUG( "getAbsoluteFilePath :: resolveDeviceLongNameToShort failed with path %ls", processPath.data( ) );
-        }
-    }
-    else {
-        LOGS_DEBUG( "getAbsoluteFilePath :: GetProcessImageFileName failed %u", GetLastError( ) );
-    }
+    wcscpy_s( pProcess->pModulePath, strFullPath.data( ) );
 
-    if ( GetModuleFileNameExW( hProcess, nullptr, pProcess->pModulePath, static_cast<std::uint32_t>( sizeof( pProcess->pModulePath ) / 2 ) ) != 0 ) {
-        return true;
-    }
-
-    return false;
+	return true;
 }
 
 std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {

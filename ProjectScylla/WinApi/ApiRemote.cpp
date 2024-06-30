@@ -1,5 +1,5 @@
 #pragma once
-#include "ApiTools.h"
+#include "ApiRemote.h"
 #include <fstream>
 #include "ntos.h"
 #include "../Tools/Logs.h"
@@ -142,8 +142,8 @@ BOOL __stdcall ApiRemote::VirtualFreeEx( HANDLE hProcess, LPVOID lpAddress, SIZE
 
 BOOL __stdcall ApiRemote::ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
 	LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead ) {
-
-	return NtReadVirtualMemory( hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead ) == 0;
+	const NTSTATUS Status = NtReadVirtualMemory( hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead );
+	return Status == 0;
 }
 
 BOOL __stdcall ApiRemote::WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,

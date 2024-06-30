@@ -137,7 +137,7 @@
     <ClCompile Include="Interface\Thirdparty\ImGui\imgui_widgets.cpp">
       <Filter>Interface\Thirdparty\ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="WinApi\ApiTools.cpp">
+    <ClCompile Include="WinApi\ApiRemote.cpp">
       <Filter>WinApi</Filter>
     </ClCompile>
     <ClCompile Include="Tools\Logs.cpp">
@@ -289,7 +289,7 @@
     <ClInclude Include="Interface\Thirdparty\GLFW\glfw3native.h">
       <Filter>Interface\Thirdparty\GLFW</Filter>
     </ClInclude>
-    <ClInclude Include="WinApi\ApiTools.h">
+    <ClInclude Include="WinApi\ApiRemote.h">
       <Filter>WinApi</Filter>
     </ClInclude>
     <ClInclude Include="WinApi\ntos.h">

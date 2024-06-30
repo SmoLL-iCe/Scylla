@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <vector>
 #include <tchar.h>
+#include <string>
 
 class HardDisk {
 public:
@@ -11,15 +12,9 @@ public:
 	std::size_t longNameLength;
 };
 
-class DeviceNameResolver
+namespace DeviceNameResolver
 {
-public:
-	DeviceNameResolver( );
-	~DeviceNameResolver( );
-	bool resolveDeviceLongNameToShort( const TCHAR* sourcePath, TCHAR* targetPath );
-private:
-	std::vector<HardDisk> deviceNameList;
-
+	std::wstring resolveDeviceLongNameToShort( std::wstring sourcePath );
 	void initDeviceNameList( );
 	void fixVirtualDevices( );
 };

@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 #include <ranges>
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 
 int IATReferenceScan::numberOfFoundDirectImports( ) {
 	return static_cast<int>( vIatDirectImportList.size( ) );

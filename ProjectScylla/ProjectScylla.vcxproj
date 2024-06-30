@@ -188,7 +188,7 @@
     <ClCompile Include="SystemInformation.cpp" />
     <ClCompile Include="Tools\Logs.cpp" />
     <ClCompile Include="Tools\Utils.cpp" />
-    <ClCompile Include="WinApi\ApiTools.cpp" />
+    <ClCompile Include="WinApi\ApiRemote.cpp" />
     <ClCompile Include="WinApi\RemoteModule.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -237,7 +237,7 @@
     <ClInclude Include="Thunks.h" />
     <ClInclude Include="Tools\Logs.h" />
     <ClInclude Include="Tools\Utils.h" />
-    <ClInclude Include="WinApi\ApiTools.h" />
+    <ClInclude Include="WinApi\ApiRemote.h" />
     <ClInclude Include="WinApi\ntos.h" />
     <ClInclude Include="WinApi\RemoteModule.h" />
   </ItemGroup>

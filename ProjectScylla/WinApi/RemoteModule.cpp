@@ -2,8 +2,9 @@
 #include "ntos.h"
 #include "../Tools/Logs.h"
 #include <vector>
-#include "ApiTools.h"
+#include "ApiRemote.h"
 #include <functional>
+#include "../DeviceNameResolver.h"
 
 template <typename A1 = void*>
 bool ReadMemory( HANDLE hProcess, A1 Address, void* pBuffer, const SIZE_T Size )
@@ -379,25 +380,132 @@ HMODULE RemoteModule::GetHandleW( HANDLE hProcess,
 	return pBase;
 }
 
+std::size_t RemoteModule::GetSizeOfModuleFromPage( HANDLE hProcess, PVOID pModule )
+{
+	std::uintptr_t uModuleBase = reinterpret_cast<std::uintptr_t>( pModule );
+
+	std::size_t szOfImage = 0;
+	MEMORY_BASIC_INFORMATION mbi = { 0 };
+
+	std::wstring strFileNameOriginal = RemoteModule::GetModulePathFromPage( hProcess, pModule );
+
+	if ( strFileNameOriginal.empty( ) )
+		return 0;
+
+	do
+	{
+		uModuleBase += mbi.RegionSize;
+		szOfImage += mbi.RegionSize;
+
+		if ( !ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uModuleBase ), &mbi, sizeof( MEMORY_BASIC_INFORMATION ) ) )
+		{
+			LOGS_DEBUG( "getSizeOfImageProcess :: VirtualQuery failed %X", GetLastError( ) );
+
+			mbi.Type = 0;
+
+			szOfImage = 0;
+		}
+
+		std::wstring strFileNameTest = RemoteModule::GetModulePathFromPage( hProcess, reinterpret_cast<PVOID>( uModuleBase ) );
+
+		if ( strFileNameOriginal.compare( strFileNameTest ) != 0 ) // Problem: 2 modules without free space
+		{
+			break;
+		}
+
+	} while ( mbi.Type == MEM_IMAGE );
+
+	return szOfImage;
+}
+
+static 
+std::wstring GetProcessImageFileNameW( HANDLE hProcess )
+{
+	const SIZE_T nSize = MAX_PATH;
+
+	SIZE_T BufferSize = sizeof( UNICODE_STRING ) + ( nSize * sizeof( WCHAR ) );
+
+	std::unique_ptr<std::uint8_t[]> pImageFileName( new std::uint8_t[ BufferSize ] );
+
+	PUNICODE_STRING ImageFileName = reinterpret_cast<PUNICODE_STRING>( pImageFileName.get( ) );
+
+	if ( ImageFileName == nullptr )
+	{
+		return L"";
+	}
+
+	NTSTATUS Status = ApiRemote::QueryInformationProcess( hProcess,
+		ProcessImageFileName,
+		ImageFileName,
+		BufferSize,
+		nullptr );
+
+	if ( Status == STATUS_INFO_LENGTH_MISMATCH )
+	{
+		Status = STATUS_BUFFER_TOO_SMALL;
+	}
+
+	if ( !NT_SUCCESS( Status ) )
+	{
+		SetLastError( RtlNtStatusToDosError( Status ) );
+		return L"";
+	}
+
+	std::wstring strImageFileName = ImageFileName->Buffer;
+
+	DWORD Len = ImageFileName->Length / sizeof( WCHAR );
+
+	if ( Len < nSize )
+	{
+		strImageFileName[ Len ] = UNICODE_NULL;
+	}
+
+	return DeviceNameResolver::resolveDeviceLongNameToShort( strImageFileName );
+}
+
+std::wstring RemoteModule::GetModulePathFromPage( HANDLE hProcess, PVOID pModule )
+{
+	std::unique_ptr<wchar_t[]> pBuff( new wchar_t[ MAX_PATH * 2 ] );
+
+	if ( ApiRemote::QueryVirtualMemory( hProcess, pModule, MemoryMappedFilenameInformation, pBuff.get( ), MAX_PATH * 2, nullptr ) )
+		return L"";
+
+	//auto* const pFullName = reinterpret_cast<wchar_t*>( &pBuff[ 16 ] );
+
+	std::wstring strFullName = std::wstring( &pBuff[ 16 ] );
+
+	return DeviceNameResolver::resolveDeviceLongNameToShort( strFullName );
+}
+
 std::wstring RemoteModule::GetFullModulePathFromBase( HANDLE hProcess, HMODULE hModule, bool bIs64bit ) {
+
+	if ( !bIs64bit )
+	{
+		std::wstring strResult = GetModulePathFromPage( hProcess, reinterpret_cast<PVOID>( hModule ) );
+
+		if ( !strResult.empty() )
+			return strResult;
+	}
 
 	auto pResultLdrEntry = GetModuleLdrEntryFromBase( hProcess, hModule, bIs64bit );
 
 	if ( !pResultLdrEntry )
 	{
-		return L"";
+		std::wstring strResult = GetProcessImageFileNameW( hProcess );
+
+		return ( !strResult.empty( ) ) ? strResult : L"";
 	}
 
 	if ( !bIs64bit )
 	{
 		LDR_DATA_TABLE_ENTRY32* pLdrEntry = reinterpret_cast<LDR_DATA_TABLE_ENTRY32*>( pResultLdrEntry.get( ) );
 
-		wchar_t wcsBaseDllName[ MAX_PATH ] = { 0 };
+		wchar_t wcsFullDllName[ MAX_PATH ] = { 0 };
 
-		if ( pLdrEntry->BaseDllName.Length > 0 )
+		if ( pLdrEntry->FullDllName.Length > 0 )
 		{
-			if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>( static_cast<size_t>( pLdrEntry->BaseDllName.Buffer ) ),
-				&wcsBaseDllName, pLdrEntry->BaseDllName.Length ) )
+			if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>( static_cast<size_t>( pLdrEntry->FullDllName.Buffer ) ),
+				wcsFullDllName, pLdrEntry->FullDllName.Length + 2 ) )
 			{
 				LOGS( "[-] - [REMH] Could not read list entry DLL name." );
 
@@ -405,20 +513,20 @@ std::wstring RemoteModule::GetFullModulePathFromBase( HANDLE hProcess, HMODULE h
 			}
 		}
 
-		return wcsBaseDllName;
+		return wcsFullDllName;
 	}
 
 	LDR_DATA_TABLE_ENTRY* pLdrEntry = reinterpret_cast<LDR_DATA_TABLE_ENTRY*>( pResultLdrEntry.get( ) );
 
 	wchar_t wcsBaseDllName[ MAX_PATH ] = { 0 };
 
-	if ( pLdrEntry->BaseDllName.Length > 0 )
+	if ( pLdrEntry->FullDllName.Length > 0 )
 	{
-		if ( !ReadMemory( hProcess, pLdrEntry->BaseDllName.Buffer, &wcsBaseDllName, pLdrEntry->BaseDllName.Length ) )
+		if ( !ReadMemory( hProcess, pLdrEntry->FullDllName.Buffer, &wcsBaseDllName, pLdrEntry->FullDllName.Length + 2 ) )
 		{
 			LOGS( "[-] - [REMH] Could not read list entry DLL name." );
 
-			return L"";
+			return  L"";
 		}
 	}
 

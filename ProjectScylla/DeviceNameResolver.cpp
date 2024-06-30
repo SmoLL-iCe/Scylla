@@ -2,16 +2,10 @@
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
 #include <memory>
+#include <string>
 
-DeviceNameResolver::DeviceNameResolver( )
-{
-    initDeviceNameList( );
-}
+std::vector<HardDisk> deviceNameList;
 
-DeviceNameResolver::~DeviceNameResolver( )
-{
-    deviceNameList.clear( );
-}
 
 void DeviceNameResolver::initDeviceNameList( )
 {
@@ -42,19 +36,75 @@ void DeviceNameResolver::initDeviceNameList( )
     fixVirtualDevices( );
 }
 
-bool DeviceNameResolver::resolveDeviceLongNameToShort( const TCHAR* sourcePath, TCHAR* targetPath )
+//std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sourcePath )
+//{
+//    //
+//    if ( deviceNameList.empty( ) )
+//    {
+//        initDeviceNameList( );
+//    }
+//
+//    if ( sourcePath.size( ) < 0x18 )
+//        return sourcePath;
+//
+//    auto isDevice = sourcePath.find( L"Device" ) == 1;
+//
+//    if ( !isDevice && sourcePath.find( L"HarddiskVolume" ) != 0 )
+//    {
+//        return sourcePath;
+//    }
+//
+//    for ( std::uint32_t i = 0; i < deviceNameList.size( ); i++ )
+//    {
+//        TCHAR* targetPath = new TCHAR[ MAX_PATH * 2 ];
+//
+//        std::wstring longName = (isDevice) ? ( deviceNameList[ i ].longName ) : ( deviceNameList[ i ].longName + 8 );
+//        size_t longNameLength = deviceNameList[ i ].longNameLength - (( isDevice ) ? 1 : 9);
+//        
+//        if ( !_tcsnicmp( longName.data( ), sourcePath.data( ), longNameLength ) && sourcePath[ longNameLength + 1 ] == TEXT( '\\' ) )
+//        {
+//            _tcscpy_s( targetPath, MAX_PATH, deviceNameList[ i ].shortName );
+//
+//            _tcscat_s( targetPath, MAX_PATH, sourcePath.data( ) + longNameLength + 1 );
+//
+//            return targetPath;
+//        }
+//
+//    }
+//
+//    return sourcePath;
+//}
+
+std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sourcePath )
 {
-    for ( std::uint32_t i = 0; i < deviceNameList.size( ); i++ )
+    if ( deviceNameList.empty( ) )
     {
-        if ( !_tcsnicmp( deviceNameList[ i ].longName, sourcePath, deviceNameList[ i ].longNameLength ) && sourcePath[ deviceNameList[ i ].longNameLength ] == TEXT( '\\' ) )
+        initDeviceNameList( );
+    }
+
+    if ( sourcePath.size( ) < 0x18 )
+        return sourcePath;
+
+    bool isDevice = sourcePath.find( L"Device" ) == 1;
+
+    if ( !isDevice && sourcePath.find( L"HarddiskVolume" ) != 0 )
+    {
+        return sourcePath;
+    }
+
+    for ( const auto& device : deviceNameList )
+    {
+        std::wstring longName = ( isDevice ) ? device.longName : std::wstring( device.longName ).substr( 8 );
+        size_t longNameLength = longName.length( );
+
+        if ( sourcePath.compare( 0, longNameLength, longName ) == 0 && sourcePath[ longNameLength ] == L'\\' )
         {
-            _tcscpy_s( targetPath, MAX_PATH, deviceNameList[ i ].shortName );
-            _tcscat_s( targetPath, MAX_PATH, sourcePath + deviceNameList[ i ].longNameLength );
-            return true;
+            std::wstring targetPath = device.shortName + sourcePath.substr( longNameLength );
+            return targetPath;
         }
     }
 
-    return false;
+    return sourcePath;
 }
 
 void DeviceNameResolver::fixVirtualDevices( )

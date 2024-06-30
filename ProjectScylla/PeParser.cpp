@@ -5,7 +5,7 @@
 #include <imagehlp.h>
 #include "Tools/Logs.h"
 #include "Architecture.h"
-#include "WinApi/ApiTools.h"
+#include "WinApi/ApiRemote.h"
 
 #undef max
 

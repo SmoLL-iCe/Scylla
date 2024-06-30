@@ -21,9 +21,9 @@ void GuiContext::getIatHexString( ) {
     auto VAstr = std::format( "{:016X}", m_scyllaCtx->m_uAddressIAT );
 #else
     szSize = 8;
-    auto OEPstr = std::format( "{:08X}", scyllaCtx->m_uEntryPoint );
+    auto OEPstr = std::format( "{:08X}", m_scyllaCtx->m_uEntryPoint );
 
-    auto VAstr = std::format( "{:08X}", scyllaCtx->m_uAddressIAT );
+    auto VAstr = std::format( "{:08X}", m_scyllaCtx->m_uAddressIAT );
 #endif // _WIN64
     auto VASizeStr = std::format( "{:08X}", m_scyllaCtx->m_uSizeIAT );
 

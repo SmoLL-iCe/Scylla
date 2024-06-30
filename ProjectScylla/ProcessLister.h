@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include <vector>
-#include <psapi.h>
 #include "DeviceNameResolver.h"
 #include "WinApi/ntos.h"
 
@@ -32,16 +31,6 @@ public:
 
 class ProcessLister {
 public:
-
-	ProcessLister( )
-	{
-		pDeviceNameResolver = new DeviceNameResolver( );
-	}
-	~ProcessLister( )
-	{
-		delete pDeviceNameResolver;
-	}
-
 	std::vector<Process>& getProcessList( );
 	static bool isWindows64( );
 	static std::uint32_t setDebugPrivileges( );
@@ -49,8 +38,6 @@ public:
 	static ProcessType checkIsProcess64( HANDLE hProcess );
 private:
 	std::vector<Process> vProcessList;
-
-	DeviceNameResolver* pDeviceNameResolver;
 
 
 	bool getAbsoluteFilePath( HANDLE hProcess, Process* pProcess );
