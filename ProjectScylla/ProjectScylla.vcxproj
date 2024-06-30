@@ -189,6 +189,7 @@
     <ClCompile Include="Tools\Logs.cpp" />
     <ClCompile Include="Tools\Utils.cpp" />
     <ClCompile Include="WinApi\ApiTools.cpp" />
+    <ClCompile Include="WinApi\RemoteModule.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApiReader.h" />
@@ -238,6 +239,7 @@
     <ClInclude Include="Tools\Utils.h" />
     <ClInclude Include="WinApi\ApiTools.h" />
     <ClInclude Include="WinApi\ntos.h" />
+    <ClInclude Include="WinApi\RemoteModule.h" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="Interface\Thirdparty\GLFW\libs\glfw3_d32_mt.lib">

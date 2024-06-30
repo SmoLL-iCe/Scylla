@@ -52,19 +52,19 @@ void ApiReader::parseModule( ModuleInfo* pModule )
 	{
 		parseModuleWithMapping( pModule );
 	}
-	else 
-	if ( 
+	else
+		if (
 #ifdef WIN64
-		ProcessAccessHelp::is64BitProcess &&
+			ProcessAccessHelp::is64BitProcess &&
 #endif	
-		isModuleLoadedInOwnProcess( pModule ) )
-	{
-		parseModuleWithOwnProcess( pModule );
-	}
-	else 
-	{
-		parseModuleWithProcess( pModule );
-	}
+			isModuleLoadedInOwnProcess( pModule ) )
+		{
+			parseModuleWithOwnProcess( pModule );
+		}
+		else
+		{
+			parseModuleWithProcess( pModule );
+		}
 
 	pModule->isAlreadyParsed = true;
 }
@@ -116,7 +116,7 @@ void ApiReader::parseModuleWithOwnProcess( ModuleInfo* pModule ) {
 		}
 
 		parseExportTable( pModule, peParser );
-		
+
 	}
 	else {
 		LOGS( "parseModuleWithOwnProcess :: hModule is nullptr" );
@@ -125,15 +125,15 @@ void ApiReader::parseModuleWithOwnProcess( ModuleInfo* pModule ) {
 
 void ApiReader::parseExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser )
 {
-	if ( !peParser->isValidExportTable( ) ) 
+	if ( !peParser->isValidExportTable( ) )
 	{
 		return;
 	}
 
 	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
 
-	if ( 
-		pExportDir->AddressOfFunctions > peParser->getDataPESize( ) 
+	if (
+		pExportDir->AddressOfFunctions > peParser->getDataPESize( )
 		|| pExportDir->AddressOfNames > peParser->getDataPESize( )
 		|| pExportDir->AddressOfNameOrdinals > peParser->getDataPESize( )
 		)
@@ -392,13 +392,13 @@ void ApiReader::findApiInProcess( ModuleInfo* pModule, const char* pSearchFuncti
 		return;
 
 	findApiInExportTable( pModule, peParser,
-				pSearchFunctionName, uOrdinal, pVaApi, pRvaApi );
+		pSearchFunctionName, uOrdinal, pVaApi, pRvaApi );
 }
 
 bool ApiReader::findApiInExportTable( ModuleInfo* pModule, std::unique_ptr<PeParser>& peParser, const char* pSearchFunctionName, std::uint16_t uOrdinal, std::uintptr_t* pVaApi, std::uintptr_t* pRvaApi )
 {
 	PIMAGE_EXPORT_DIRECTORY pExportDir = peParser->getExportData( );
-	
+
 	std::uintptr_t uDeltaAddress = reinterpret_cast<std::uintptr_t>( peParser->getDataPE( ) );
 
 
@@ -587,7 +587,7 @@ void ApiReader::readAndParseIAT( std::uintptr_t uAddressIAT, std::uint32_t uSize
 
 	auto pDataIat = std::make_unique<std::uint8_t[ ]>( uSizeIAT );
 
-	if ( readMemoryFromProcess( uAddressIAT, uSizeIAT, pDataIat.get( ) ) )
+	if ( readRemoteMemory( uAddressIAT, pDataIat.get( ), uSizeIAT ) )
 	{
 		parseIAT( uAddressIAT, pDataIat.get( ), uSizeIAT );
 	}
@@ -607,7 +607,7 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 	std::size_t szTableSize = szSize / sizeof( std::uintptr_t );
 
 #ifdef WIN64
-	
+
 	if ( !ProcessAccessHelp::is64BitProcess && szTableSize )
 		szTableSize *= 2;
 
@@ -624,11 +624,11 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 
 		std::uintptr_t uIatEntryAddress = 0;
 
-		if ( ProcessAccessHelp::is64BitProcess ) { 
+		if ( ProcessAccessHelp::is64BitProcess ) {
 			uAddress = reinterpret_cast<std::uintptr_t*>( pIatBuffer )[ i ];
 			uIatEntryAddress = uAddressIAT + i * sizeof( std::uintptr_t );
 		}
-		else { 
+		else {
 			uAddress = reinterpret_cast<std::uint32_t*>( pIatBuffer )[ i ];
 			uIatEntryAddress = uAddressIAT + i * sizeof( std::uint32_t );
 		}
@@ -676,7 +676,7 @@ void ApiReader::parseIAT( std::uintptr_t uAddressIAT, std::uint8_t* pIatBuffer, 
 			nCountApiNotFound++;
 			addNotFoundApiToModuleList( uIatEntryAddress, uAddress );
 		}
-		
+
 	}
 
 	LOGS_DEBUG( "IAT parsing finished, found %d valid APIs, missed %d APIs", nCountApiFound, nCountApiNotFound );
@@ -693,7 +693,7 @@ void ApiReader::addFoundApiToModuleList( std::uintptr_t uIatAddressVA, ApiInfo* 
 
 bool ApiReader::addModuleToModuleList( const wchar_t* pModuleName, std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk ModuleThunk{};
+	ImportModuleThunk ModuleThunk {};
 
 	ModuleThunk.uFirstThunk = uFirstThunk;
 	wcscpy_s( ModuleThunk.pModuleName, pModuleName );
@@ -705,7 +705,7 @@ bool ApiReader::addModuleToModuleList( const wchar_t* pModuleName, std::uintptr_
 
 void ApiReader::addUnknownModuleToModuleList( std::uintptr_t uFirstThunk )
 {
-	ImportModuleThunk ModuleThunk{};
+	ImportModuleThunk ModuleThunk {};
 
 	ModuleThunk.uFirstThunk = uFirstThunk;
 	wcscpy_s( ModuleThunk.pModuleName, L"?" );
@@ -820,7 +820,7 @@ bool ApiReader::isInvalidMemoryForIat( std::uintptr_t uAddress ) {
 
 	MEMORY_BASIC_INFORMATION memBasic {};
 
-	if ( ApiTools::VirtualQueryEx( ProcessAccessHelp::hProcess, reinterpret_cast<LPVOID>( uAddress ), &memBasic, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
+	if ( ApiRemote::VirtualQueryEx( ProcessAccessHelp::hProcess, reinterpret_cast<LPVOID>( uAddress ), &memBasic, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
 		return !( memBasic.State == MEM_COMMIT && ProcessAccessHelp::isPageAccessable( memBasic.Protect ) );
 	}
 	return true;

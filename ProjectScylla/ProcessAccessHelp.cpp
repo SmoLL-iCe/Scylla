@@ -47,7 +47,7 @@ bool ProcessAccessHelp::openProcessHandle( std::uint32_t uPID )
 		return false;
 	}
 
-	hProcess = ApiTools::OpenProcess( PROCESS_CREATE_THREAD
+	hProcess = ApiRemote::OpenProcess( PROCESS_CREATE_THREAD
 		| PROCESS_VM_OPERATION
 		| PROCESS_QUERY_INFORMATION
 		| PROCESS_VM_READ
@@ -73,7 +73,7 @@ void ProcessAccessHelp::closeProcessHandle( )
 {
 	if ( hProcess ) {
 
-		ApiTools::CloseHandle( hProcess );
+		ApiRemote::CloseHandle( hProcess );
 
 		hProcess = nullptr;
 	}
@@ -85,7 +85,7 @@ void ProcessAccessHelp::closeProcessHandle( )
 	//selectedModule = nullptr;
 }
 
-bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
+bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, LPVOID pDataBuffer, std::size_t szSize )
 {
 	std::uintptr_t addressPart = 0;
 	std::uintptr_t readBytes = 0;
@@ -96,15 +96,17 @@ bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, st
 		return false;
 	}
 
-	if ( readMemoryFromProcess( uAddress, szSize, pDataBuffer ) )
+	if ( readRemoteMemory( uAddress, pDataBuffer, szSize ) )
 		return true;
+
+
 
 	addressPart = uAddress;
 
 	MEMORY_BASIC_INFORMATION memBasic = { 0 };
 
 	do {
-		if ( !ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( addressPart ), &memBasic, sizeof( memBasic ) ) ) {
+		if ( !ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( addressPart ), &memBasic, sizeof( memBasic ) ) ) {
 			LOGS_DEBUG( "readMemoryPartlyFromProcess :: Error VirtualQueryEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", addressPart, szSize, GetLastError( ) );
 			break;
 		}
@@ -115,10 +117,10 @@ bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, st
 			bytesToRead = szSize - readBytes;
 		}
 
-		if ( memBasic.State == MEM_COMMIT 
+		if ( memBasic.State == MEM_COMMIT
 			//&& memBasic.Protect != PAGE_NOACCESS 
 			) {
-			if ( !readMemoryFromProcess( addressPart, bytesToRead, reinterpret_cast<LPVOID>( reinterpret_cast<std::uintptr_t>( pDataBuffer ) + readBytes ) ) ) {
+			if ( !readRemoteMemory( addressPart, reinterpret_cast<LPVOID>( reinterpret_cast<std::uintptr_t>( pDataBuffer ) + readBytes ), bytesToRead ) ) {
 				break;
 			}
 		}
@@ -135,7 +137,7 @@ bool ProcessAccessHelp::readMemoryPartlyFromProcess( std::uintptr_t uAddress, st
 	return ( readBytes == szSize );
 }
 
-bool ProcessAccessHelp::writeMemoryToProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
+bool ProcessAccessHelp::writeRemoteMemory( std::uintptr_t uAddress, LPVOID pDataBuffer, std::size_t szSize )
 {
 	SIZE_T szNumberOfBytesWritten = 0;
 
@@ -146,10 +148,10 @@ bool ProcessAccessHelp::writeMemoryToProcess( std::uintptr_t uAddress, std::size
 		return false;
 	}
 
-	return ( ApiTools::WriteProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesWritten ) != FALSE );
+	return ( ApiRemote::WriteProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesWritten ) != FALSE );
 }
 
-bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::size_t szSize, LPVOID pDataBuffer )
+bool ProcessAccessHelp::readRemoteMemory( std::uintptr_t uAddress, LPVOID pDataBuffer, std::size_t szSize )
 {
 	SIZE_T szNumberOfBytesRead = 0;
 	DWORD dwProtect = 0;
@@ -157,27 +159,27 @@ bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::siz
 
 	if ( !hProcess )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: hProcess == nullptr" );
+		LOGS_DEBUG( "readRemoteMemory :: hProcess == nullptr" );
 		return false;
 	}
 
-	if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
+	if ( !ApiRemote::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
+		LOGS_DEBUG( "readRemoteMemory :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 
-		if ( !ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, PAGE_READONLY, &dwProtect ) )
+		if ( !ApiRemote::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, PAGE_READONLY, &dwProtect ) )
 		{
-			LOGS_DEBUG( "readMemoryFromProcess :: Error VirtualProtectEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
+			LOGS_DEBUG( "readRemoteMemory :: Error VirtualProtectEx " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 			return false;
 		}
 		else
 		{
-			if ( !ApiTools::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
+			if ( !ApiRemote::ReadProcessMemory( hProcess, reinterpret_cast<LPVOID>( uAddress ), pDataBuffer, szSize, &szNumberOfBytesRead ) )
 			{
-				LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
+				LOGS_DEBUG( "readRemoteMemory :: Error ReadProcessMemory " PRINTF_DWORD_PTR_FULL_S " " PRINTF_DWORD_PTR_FULL_S " err: %u", uAddress, szSize, GetLastError( ) );
 				return false;
 			}
-			ApiTools::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, dwProtect, &dwProtect );
+			ApiRemote::VirtualProtectEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), szSize, dwProtect, &dwProtect );
 		}
 	}
 	else
@@ -187,7 +189,7 @@ bool ProcessAccessHelp::readMemoryFromProcess( std::uintptr_t uAddress, std::siz
 
 	if ( returnValue && szSize != szNumberOfBytesRead )
 	{
-		LOGS_DEBUG( "readMemoryFromProcess :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", szNumberOfBytesRead, szSize );
+		LOGS_DEBUG( "readRemoteMemory :: Error ReadProcessMemory read " PRINTF_INTEGER_S " bytes requested " PRINTF_INTEGER_S " bytes", szNumberOfBytesRead, szSize );
 		return false;
 	}
 
@@ -199,7 +201,7 @@ bool ProcessAccessHelp::decomposeMemory( std::uint8_t* pDataBuffer, std::size_t 
 {
 	ZeroMemory( &decomposerCi, sizeof( _CodeInfo ) );
 	decomposerCi.code = pDataBuffer;
-	decomposerCi.codeLen = static_cast<int>(bufferSize);
+	decomposerCi.codeLen = static_cast<int>( bufferSize );
 	decomposerCi.dt = dt;
 	decomposerCi.codeOffset = uStartAddress;
 
@@ -412,17 +414,17 @@ bool ProcessAccessHelp::readHeaderFromFile( std::uint8_t* pBuffer, std::uint32_t
 	return returnValue;
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewRead( const wchar_t* pFilePath, size_t* pSzFileSize )
+LPVOID ProcessAccessHelp::createFileMappingViewRead( const wchar_t* pFilePath, std::size_t* pSzFileSize )
 {
 	return createFileMappingView( pFilePath, GENERIC_READ, PAGE_READONLY | SEC_IMAGE, FILE_MAP_READ, pSzFileSize );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingViewFull( const wchar_t* pFilePath, size_t* pSzFileSize )
+LPVOID ProcessAccessHelp::createFileMappingViewFull( const wchar_t* pFilePath, std::size_t* pSzFileSize )
 {
 	return createFileMappingView( pFilePath, GENERIC_ALL, PAGE_EXECUTE_READWRITE, FILE_MAP_ALL_ACCESS, pSzFileSize );
 }
 
-LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap, size_t* pSzFileSize )
+LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::uint32_t uAccessFile, std::uint32_t uflProtect, std::uint32_t uAccessMap, std::size_t* pSzFileSize )
 {
 	HANDLE hFile = CreateFile( pFilePath, uAccessFile, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
 
@@ -433,7 +435,7 @@ LPVOID ProcessAccessHelp::createFileMappingView( const wchar_t* pFilePath, std::
 		return nullptr;
 	}
 
-	LARGE_INTEGER liFileSize{};
+	LARGE_INTEGER liFileSize {};
 
 	GetFileSizeEx( hFile, &liFileSize );
 
@@ -525,12 +527,12 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 		return false;
 	}
 
-	MODULEENTRY32W meModuleEntry{ };
+	MODULEENTRY32W meModuleEntry { };
 	meModuleEntry.dwSize = sizeof( MODULEENTRY32W );
 
 	if ( Module32FirstW( hSnapshot, &meModuleEntry ) ) {
 		do {
-			ModuleInfo Module{};
+			ModuleInfo Module {};
 
 			Module.uModBase = reinterpret_cast<std::uintptr_t>( meModuleEntry.modBaseAddr );
 
@@ -573,7 +575,7 @@ bool ProcessAccessHelp::getMemoryRegionFromAddress( std::uintptr_t uAddress, std
 {
 	MEMORY_BASIC_INFORMATION mbi;
 
-	if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), &mbi, sizeof( MEMORY_BASIC_INFORMATION ) ) != sizeof( MEMORY_BASIC_INFORMATION ) )
+	if ( ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), &mbi, sizeof( MEMORY_BASIC_INFORMATION ) ) != sizeof( MEMORY_BASIC_INFORMATION ) )
 	{
 		LOGS_DEBUG( "getMemoryRegionFromAddress :: VirtualQueryEx error %u", GetLastError( ) );
 		return false;
@@ -605,9 +607,8 @@ std::uint32_t ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, st
 	std::size_t szOfImageNative = getSizeOfImageProcessNative( processHandle, uModuleBase );
 
 	if ( szOfImageNative )
-	{
 		return static_cast<std::uint32_t>( szOfImageNative );
-	}
+	
 
 	wchar_t pFileNameOriginal[ MAX_PATH * 2 ] = { 0 };
 	wchar_t pFileNameTest[ MAX_PATH * 2 ] = { 0 };
@@ -619,7 +620,7 @@ std::uint32_t ProcessAccessHelp::getSizeOfImageProcess( HANDLE processHandle, st
 		uModuleBase += mbiBuffer.RegionSize;
 		szOfImage += mbiBuffer.RegionSize;
 
-		if ( !ApiTools::VirtualQueryEx( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), &mbiBuffer, sizeof( MEMORY_BASIC_INFORMATION ) ) )
+		if ( !ApiRemote::VirtualQueryEx( processHandle, reinterpret_cast<LPVOID>( uModuleBase ), &mbiBuffer, sizeof( MEMORY_BASIC_INFORMATION ) ) )
 		{
 			LOGS_DEBUG( "getSizeOfImageProcess :: VirtualQuery failed %X", GetLastError( ) );
 
@@ -717,7 +718,7 @@ std::size_t ProcessAccessHelp::getSizeOfImageProcessNative( HANDLE processHandle
 
 	SIZE_T szRetLen = 0;
 
-	return ( ApiTools::QueryVirtualMemory( processHandle, reinterpret_cast<PVOID>( uModuleBase ),
+	return ( ApiRemote::QueryVirtualMemory( processHandle, reinterpret_cast<PVOID>( uModuleBase ),
 		MemoryRegionInformation, &memRegion, sizeof( MEMORY_REGION_INFORMATION ), &szRetLen ) == 0ul )
 		? memRegion.RegionSize : 0;
 }

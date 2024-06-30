@@ -29,7 +29,7 @@ bool IATSearch::findIATAdvanced( std::uintptr_t uStartAddress, std::uintptr_t* u
 
 	auto pDataBuffer = std::make_unique<std::uint8_t[ ]>( szMemorySize );
 
-	if ( !readMemoryFromProcess( uBaseAddress, szMemorySize, pDataBuffer.get( ) ) ) {
+	if ( !readRemoteMemory( uBaseAddress, pDataBuffer.get( ), szMemorySize ) ) {
 		LOGS_DEBUG( "findAPIAddressInIAT2 :: error reading memory" );
 		return false;
 	}
@@ -88,7 +88,7 @@ std::uintptr_t IATSearch::findAPIAddressInIAT( std::uintptr_t uStartAddress )
 	{
 		nCounter++;
 
-		if ( !readMemoryFromProcess( uStartAddress, sizeof( pDataBuffer ), pDataBuffer ) )
+		if ( !readRemoteMemory( uStartAddress, pDataBuffer, sizeof( pDataBuffer ) ) )
 		{
 
 			LOGS_DEBUG( "findAPIAddressInIAT :: error reading memory " PRINTF_DWORD_PTR_FULL_S, uStartAddress );
@@ -138,7 +138,7 @@ std::uintptr_t IATSearch::findNextFunctionAddress( )
 
 			return static_cast<std::uintptr_t>( INSTRUCTION_GET_TARGET( &decomposerResult[ i ] ) );
 		}
-		
+
 	}
 
 	return 0;
@@ -159,7 +159,7 @@ std::uintptr_t IATSearch::findIATPointer( )
 		if ( decomposerResult[ i ].size < 5 )
 			continue;
 
-		if ( ProcessAccessHelp::is64BitProcess ) { 
+		if ( ProcessAccessHelp::is64BitProcess ) {
 
 			if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
 			{
@@ -190,7 +190,7 @@ bool IATSearch::isIATPointerValid( std::uintptr_t uIatPointer, bool bCheckRedire
 {
 	std::uintptr_t uApiAddress = 0;
 
-	if ( !readMemoryFromProcess( uIatPointer, sizeof( uApiAddress ), &uApiAddress ) )
+	if ( !readRemoteMemory( uIatPointer, &uApiAddress, sizeof( uApiAddress ) ) )
 	{
 		LOGS_DEBUG( "isIATPointerValid :: error reading memory" );
 		return false;
@@ -232,7 +232,7 @@ bool IATSearch::findIATStartAndSize( std::uintptr_t uAddress, std::uintptr_t* uA
 
 	std::memset( pDataBuffer.get( ), 0, uBaseSize * sizeof( std::uintptr_t ) * 3 );
 
-	if ( !readMemoryFromProcess( uBaseAddress, uBaseSize, pDataBuffer.get( ) ) ) {
+	if ( !readRemoteMemory( uBaseAddress, pDataBuffer.get( ), uBaseSize ) ) {
 
 		LOGS_DEBUG( "findIATStartAddress :: error reading memory" );
 
@@ -314,7 +314,7 @@ void IATSearch::findIATPointers( std::set<std::uintptr_t>& iatPointers )
 
 		if ( decomposerResult[ i ].size < 5 )
 			continue;
-				
+
 		if ( ProcessAccessHelp::is64BitProcess )
 		{
 			if ( decomposerResult[ i ].flags & FLAG_RIP_RELATIVE )
@@ -326,7 +326,7 @@ void IATSearch::findIATPointers( std::set<std::uintptr_t>& iatPointers )
 				iatPointers.insert( INSTRUCTION_GET_RIP_TARGET( &decomposerResult[ i ] ) );
 			}
 		}
-		else { 
+		else {
 			if ( decomposerResult[ i ].ops[ 0 ].type == O_DISP )
 			{
 				//jmp dword ptr || call dword ptr
@@ -347,7 +347,7 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( std::uintptr_t uStartAd
 	*pMemorySize = 0;
 	*uBaseAddress = 0;
 
-	if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uStartAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
+	if ( ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uStartAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
 	{
 		LOGS_DEBUG( "findIATStartAddress :: VirtualQueryEx error %u", GetLastError( ) );
 		return;
@@ -360,7 +360,7 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( std::uintptr_t uStartAd
 		*uBaseAddress = reinterpret_cast<std::uintptr_t>( memBasic.BaseAddress );
 		std::uintptr_t uTempAddress = *uBaseAddress - 1;
 
-		if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uTempAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
+		if ( ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uTempAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
 		{
 			break;
 		}
@@ -375,7 +375,7 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( std::uintptr_t uStartAd
 		uTempAddress += memBasic.RegionSize;
 		*pMemorySize += memBasic.RegionSize;
 
-		if ( ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uTempAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
+		if ( ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uTempAddress ), &memBasic, sizeof( memBasic ) ) != sizeof( memBasic ) )
 		{
 			break;
 		}
@@ -450,7 +450,7 @@ void IATSearch::getMemoryBaseAndSizeForIat( std::uintptr_t uAddress, std::uintpt
 	MEMORY_BASIC_INFORMATION memBasic2 {};
 	MEMORY_BASIC_INFORMATION memBasic3 {};
 
-	if ( !ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), &memBasic2, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
+	if ( !ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( uAddress ), &memBasic2, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
 		return;
 	}
 
@@ -460,10 +460,10 @@ void IATSearch::getMemoryBaseAndSizeForIat( std::uintptr_t uAddress, std::uintpt
 	adjustSizeForBigSections( pBaseSize );
 
 	// Get the neighbors
-	if ( !ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( *uBaseAddress - 1 ), &memBasic1, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
+	if ( !ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( *uBaseAddress - 1 ), &memBasic1, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
 		return;
 	}
-	if ( !ApiTools::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( *uBaseAddress + memBasic2.RegionSize ), &memBasic3, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
+	if ( !ApiRemote::VirtualQueryEx( hProcess, reinterpret_cast<LPVOID>( *uBaseAddress + memBasic2.RegionSize ), &memBasic3, sizeof( MEMORY_BASIC_INFORMATION ) ) ) {
 		return;
 	}
 

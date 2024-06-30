@@ -57,5 +57,5 @@ private:
 
 	void handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFORMATION pProcess );
 	void getProcessImageInformation( HANDLE hProcess, Process* pProcess );
-	std::uintptr_t getPebAddressFromProcess( HANDLE hProcess );
+	std::uintptr_t getPebAddressFromProcess( HANDLE hProcess, ProcessType archType );
 };

@@ -4,32 +4,12 @@
 #include "ntos.h"
 #include "../Tools/Logs.h"
 
-SIZE_T __stdcall ApiTools::VirtualQuery( LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
-{
-	return ApiTools::VirtualQueryEx( NtCurrentProcess( ), lpAddress, lpBuffer, dwLength );
-}
-
-LPVOID __stdcall ApiTools::VirtualAlloc( LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect )
-{
-	return ApiTools::VirtualAllocEx( NtCurrentProcess( ), lpAddress, dwSize, flAllocationType, flProtect );
-}
-
-BOOL __stdcall ApiTools::VirtualProtect( LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect )
-{
-	return ApiTools::VirtualProtectEx( NtCurrentProcess( ), lpAddress, dwSize, flNewProtect, lpflOldProtect );
-}
-
-BOOL __stdcall ApiTools::VirtualFree( LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType )
-{
-	return ApiTools::VirtualFreeEx( NtCurrentProcess( ), lpAddress, dwSize, dwFreeType );
-}
-
-HANDLE __stdcall ApiTools::CreateRemoteThread( HANDLE hProcess, void* lpStartAddress, LPVOID lpParameter )
+HANDLE __stdcall ApiRemote::CreateRemoteThread( HANDLE hProcess, void* lpStartAddress, LPVOID lpParameter )
 {
 	return ::CreateRemoteThread( hProcess, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>( lpStartAddress ), lpParameter, 0, nullptr );
 }
 
-HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId ) {
+HANDLE __stdcall ApiRemote::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId ) {
 
 	HANDLE hProcess = 0;
 
@@ -54,11 +34,11 @@ HANDLE __stdcall ApiTools::OpenProcess( DWORD dwDesiredAccess, BOOL bInheritHand
 	return ::OpenProcess( dwDesiredAccess, bInheritHandle, dwProcessId );
 }
 
-BOOL __stdcall ApiTools::IsWow64Process( HANDLE hProcess, PBOOL Wow64Process ) {
+BOOL __stdcall ApiRemote::IsWow64Process( HANDLE hProcess, PBOOL Wow64Process ) {
 
 	ULONG ReturnLength = 0;
 	PVOID pWow64Process = nullptr;
-	NTSTATUS status = ApiTools::QueryInformationProcess( hProcess, ProcessWow64Information, &pWow64Process, sizeof( pWow64Process ), &ReturnLength );
+	NTSTATUS status = ApiRemote::QueryInformationProcess( hProcess, ProcessWow64Information, &pWow64Process, sizeof( pWow64Process ), &ReturnLength );
 
 	if ( status == 0 && pWow64Process != nullptr ) {
 		*Wow64Process = TRUE;
@@ -69,7 +49,7 @@ BOOL __stdcall ApiTools::IsWow64Process( HANDLE hProcess, PBOOL Wow64Process ) {
 	return status == 0;
 }
 
-std::unique_ptr<void, VirtualFreeDeleter> ApiTools::GetSystemInfo( SYSTEM_INFORMATION_CLASS SystemInformationClass ) {
+std::unique_ptr<void, VirtualFreeDeleter> ApiRemote::GetSystemInfo( SYSTEM_INFORMATION_CLASS SystemInformationClass ) {
 	ULONG uBufferSize = 0x1000 * 10;
 
 	// Use smart pointer with custom deleter
@@ -108,11 +88,11 @@ std::unique_ptr<void, VirtualFreeDeleter> ApiTools::GetSystemInfo( SYSTEM_INFORM
 // ========================================================================================================
 // ========================================================================================================
 
-void ApiTools::CloseHandle( HANDLE hObject ) {
+void ApiRemote::CloseHandle( HANDLE hObject ) {
 	::NtClose( hObject );
 }
 
-LPVOID __stdcall ApiTools::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect )
+LPVOID __stdcall ApiRemote::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect )
 {
 	PVOID pAddress = lpAddress;
 
@@ -123,22 +103,22 @@ LPVOID __stdcall ApiTools::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, SI
 	return  ( Status == 0 ) ? pAddress : nullptr;
 }
 
-SIZE_T __stdcall ApiTools::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
+SIZE_T __stdcall ApiRemote::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
 {
 
 	return ::VirtualQueryEx( hProcess, lpAddress, lpBuffer, dwLength );
 	SIZE_T rSize;
 
-	const NTSTATUS Status = ApiTools::QueryVirtualMemory( hProcess, lpAddress, MemoryBasicInformation, lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ), &rSize );
+	const NTSTATUS Status = ApiRemote::QueryVirtualMemory( hProcess, lpAddress, MemoryBasicInformation, lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ), &rSize );
 
 	return  ( Status == 0 ) ? rSize : 0;
 }
 
-NTSTATUS __stdcall ApiTools::QueryVirtualMemory( HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength ) {
+NTSTATUS __stdcall ApiRemote::QueryVirtualMemory( HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength ) {
 	return NtQueryVirtualMemory( ProcessHandle, BaseAddress, MemoryInformationClass, MemoryInformation, MemoryInformationLength, ReturnLength );
 }
 
-BOOL __stdcall ApiTools::VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect )
+BOOL __stdcall ApiRemote::VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect )
 {
 	PVOID pAddress = lpAddress;
 
@@ -149,7 +129,7 @@ BOOL __stdcall ApiTools::VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, SI
 	return  ( Status == 0 );
 }
 
-BOOL __stdcall ApiTools::VirtualFreeEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType )
+BOOL __stdcall ApiRemote::VirtualFreeEx( HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType )
 {
 	PVOID pAddress = lpAddress;
 
@@ -160,18 +140,18 @@ BOOL __stdcall ApiTools::VirtualFreeEx( HANDLE hProcess, LPVOID lpAddress, SIZE_
 	return  ( Status == 0 );
 }
 
-BOOL __stdcall ApiTools::ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
+BOOL __stdcall ApiRemote::ReadProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
 	LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead ) {
 
 	return NtReadVirtualMemory( hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead ) == 0;
 }
 
-BOOL __stdcall ApiTools::WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
+BOOL __stdcall ApiRemote::WriteProcessMemory( HANDLE hProcess, LPVOID lpBaseAddress,
 	LPCVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten ) {
 	return NtWriteVirtualMemory( hProcess, lpBaseAddress, const_cast<LPVOID>(lpBuffer), nSize, lpNumberOfBytesWritten ) == 0;
 }
 
-NTSTATUS __stdcall ApiTools::QueryInformationProcess( HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength ) {
+NTSTATUS __stdcall ApiRemote::QueryInformationProcess( HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength ) {
 
 	return NtQueryInformationProcess( ProcessHandle, ProcessInformationClass, ProcessInformation, ProcessInformationLength, ReturnLength );
 }

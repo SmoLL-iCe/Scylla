@@ -7,6 +7,7 @@
 #include "WinApi/ApiTools.h"
 #include <array> 
 #include "Tools/Utils.h"
+#include "WinApi/RemoteModule.h"
 
 std::vector<Process>& ProcessLister::getProcessList( )
 {
@@ -70,7 +71,7 @@ ProcessType ProcessLister::checkIsProcess64( HANDLE hProcess )
         return PROCESS_32;
     }
 
-    ApiTools::IsWow64Process( hProcess, &bIsWow64 );
+    ApiRemote::IsWow64Process( hProcess, &bIsWow64 );
 
     if ( bIsWow64 == FALSE )
     {
@@ -121,7 +122,7 @@ std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
         vProcessList.reserve( 300 );
     }
 
-    std::unique_ptr<void, VirtualFreeDeleter> pBuffer = ApiTools::GetSystemInfo( SystemProcessInformation );
+    std::unique_ptr<void, VirtualFreeDeleter> pBuffer = ApiRemote::GetSystemInfo( SystemProcessInformation );
 
     if ( !pBuffer ) {
         return vProcessList;
@@ -155,7 +156,7 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
 
     process.PID = static_cast<std::uint32_t>( reinterpret_cast<std::size_t>( pProcess->UniqueProcessId ) );
 
-    HANDLE hProcess = ApiTools::OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process.PID );
+    HANDLE hProcess = ApiRemote::OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process.PID );
 
     if ( hProcess && hProcess != INVALID_HANDLE_VALUE )
     {
@@ -174,7 +175,7 @@ void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESSES_INFO
 
             getAbsoluteFilePath( hProcess, &process );
 
-            process.uPebAddress = getPebAddressFromProcess( hProcess );
+            process.uPebAddress = getPebAddressFromProcess( hProcess, process.archType );
 
             getProcessImageInformation( hProcess, &process );
 
@@ -189,13 +190,13 @@ void ProcessLister::getProcessImageInformation( HANDLE hProcess, Process* pProce
     std::uintptr_t uReadImagebase = 0;
 
     pProcess->uImageBase = 0;
-    pProcess->uImageSize = 0;
+    //pProcess->uImageSize = 0;
 
     if ( hProcess && pProcess->uPebAddress )
     {
         PEB* peb = reinterpret_cast<PEB*>( pProcess->uPebAddress );
 
-        if ( ApiTools::ReadProcessMemory( hProcess, &peb->ImageBaseAddress, &uReadImagebase, sizeof( std::uintptr_t ), 0 ) )
+        if ( ApiRemote::ReadProcessMemory( hProcess, &peb->ImageBaseAddress, &uReadImagebase, sizeof( std::uintptr_t ), 0 ) )
         {
             pProcess->uImageBase = uReadImagebase;
             pProcess->uImageSize = ProcessAccessHelp::getSizeOfImageProcess( hProcess, pProcess->uImageBase );
@@ -203,30 +204,7 @@ void ProcessLister::getProcessImageInformation( HANDLE hProcess, Process* pProce
     }
 }
 
-std::uintptr_t ProcessLister::getPebAddressFromProcess( HANDLE hProcess )
+std::uintptr_t ProcessLister::getPebAddressFromProcess( HANDLE hProcess, ProcessType archType )
 {
-    if ( hProcess )
-    {
-        ULONG RequiredLen = 0;
-
-        void* PebAddress = 0;
-
-        PROCESS_BASIC_INFORMATION myProcessBasicInformation[ 5 ] = { 0 };
-
-        if ( ApiTools::QueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, sizeof( PROCESS_BASIC_INFORMATION ), &RequiredLen ) == STATUS_SUCCESS )
-        {
-            PebAddress = myProcessBasicInformation->PebBaseAddress;
-        }
-        else
-        {
-            if ( ApiTools::QueryInformationProcess( hProcess, ProcessBasicInformation, myProcessBasicInformation, RequiredLen, &RequiredLen ) == STATUS_SUCCESS )
-            {
-                PebAddress = myProcessBasicInformation->PebBaseAddress;
-            }
-        }
-
-        return reinterpret_cast<std::uintptr_t>( PebAddress );
-    }
-
-    return 0;
+    return reinterpret_cast<std::uintptr_t>( RemoteModule::GetProcessPeb( hProcess, archType == PROCESS_64 ) );
 }

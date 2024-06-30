@@ -170,6 +170,9 @@
     <ClCompile Include="Interface\GuiControls\ConfigGui.cpp">
       <Filter>Interface\GuiControls</Filter>
     </ClCompile>
+    <ClCompile Include="WinApi\RemoteModule.cpp">
+      <Filter>WinApi</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="diStorm\include\distorm.h">
@@ -312,6 +315,9 @@
     </ClInclude>
     <ClInclude Include="Interface\Interface.h">
       <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="WinApi\RemoteModule.h">
+      <Filter>WinApi</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
