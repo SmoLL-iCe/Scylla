@@ -1,6 +1,16 @@
 #pragma once
 #include <Windows.h>
 #include <string>
+#include <functional>
+
+struct sPebModuleInfo
+{
+	PVOID DllBase = nullptr;
+	PVOID EntryPoint = nullptr;
+	ULONG SizeOfImage = 0;
+	wchar_t FullDllName[ MAX_PATH ];
+	wchar_t BaseDllName[ MAX_PATH ];
+};
 
 namespace RemoteModule { 
 
@@ -14,4 +24,6 @@ namespace RemoteModule {
 	std::wstring GetModulePathFromPage( HANDLE hProcess, PVOID pModule );
 
 	std::wstring GetFullModulePathFromBase( HANDLE hProcess, HMODULE hModule, bool bIs64bit );
+
+	void EnumModulesInfo( HANDLE hProcess, bool bIs64bit, std::function<bool( sPebModuleInfo* )> fnCallback );
 }

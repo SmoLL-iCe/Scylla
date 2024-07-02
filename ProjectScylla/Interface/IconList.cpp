@@ -73,7 +73,7 @@ bool LoadIconToOpenGLTexture( HICON hIcon, GLuint* textureID ) {
         return false;
     }
 
-    return glWindow::LoadMemoryFile( imageData, ImVec2( width, height ), textureID );
+    return glWindow::LoadMemoryFile( imageData, ImVec2( static_cast<float>( width ), static_cast<float>( height ) ), textureID );
 }
 
 bool IconList::ExtractIconFromFile( const TCHAR* filePath, ImTextureID& textureID ) {

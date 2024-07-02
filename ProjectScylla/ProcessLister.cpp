@@ -129,8 +129,7 @@ std::vector<Process>& ProcessLister::getProcessListSnapshotNative( ) {
 
         if ( pIter->NextEntryDelta == 0 ) {
             break;
-        }
-        else {
+        } else {
             pIter = reinterpret_cast<PSYSTEM_PROCESSES_INFORMATION>( reinterpret_cast<uintptr_t>( pIter ) + pIter->NextEntryDelta );
         }
     }

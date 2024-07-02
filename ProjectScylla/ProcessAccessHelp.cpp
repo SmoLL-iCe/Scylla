@@ -519,44 +519,28 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 		return false;
 	}
 
-	HANDLE hSnapshot = CreateToolhelp32Snapshot( TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, dwProcessId );
+	RemoteModule::EnumModulesInfo( hProcess, archType == PROCESS_64, 
+		[ archType, &vModuleList ]( sPebModuleInfo* pModule ) -> bool
+		{
+			ModuleInfo Module{};
 
-	if ( hSnapshot == INVALID_HANDLE_VALUE ) {
-		return false;
-	}
-
-	MODULEENTRY32W meModuleEntry { };
-	meModuleEntry.dwSize = sizeof( MODULEENTRY32W );
-
-	if ( Module32FirstW( hSnapshot, &meModuleEntry ) ) {
-		do {
-			ModuleInfo Module {};
-
-			Module.uModBase = reinterpret_cast<std::uintptr_t>( meModuleEntry.modBaseAddr );
+			Module.uModBase = reinterpret_cast<std::uintptr_t>( pModule->DllBase );
 
 			if ( archType == PROCESS_32 && Module.uModBase > 0xFFFFFFFF )
-				continue;
+				return false;
 
-			Module.uModBaseSize = meModuleEntry.modBaseSize;
+			Module.uModBaseSize    = pModule->SizeOfImage;
+
 			Module.isAlreadyParsed = false;
-			Module.parsing = false;
 
-			auto wstrFullModulePath = RemoteModule::GetFullModulePathFromBase( 
-				hProcess, 
-				reinterpret_cast<HMODULE>( meModuleEntry.modBaseAddr ), 
-				archType == PROCESS_64 );
+			Module.parsing         = false;
 
-			if ( !wstrFullModulePath.empty( ) )
-			{
-				wcscpy_s( Module.pModulePath, wstrFullModulePath.data( ) );
-			}
+			wcscpy_s( Module.pModulePath, pModule->FullDllName );
 
 			vModuleList.push_back( Module );
 
-		} while ( Module32NextW( hSnapshot, &meModuleEntry ) );
-	}
-
-	CloseHandle( hSnapshot );
+			return false;
+		} );
 
 	return true;
 }

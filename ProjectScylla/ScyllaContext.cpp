@@ -53,7 +53,7 @@ ScyllaContext::~ScyllaContext( ) {}
 
 void ScyllaContext::getPePreInfo( )
 {
-	if ( m_strDumpFullFilePath.empty( ) && !ProcessAccessHelp::uTargetImageBase )
+	if ( m_strDumpFullFilePath.empty( ) || !ProcessAccessHelp::uTargetImageBase )
 		return;
 
 	PeParser* pPeFile = ( Config::USE_PE_HEADER_FROM_DISK && !m_strDumpFullFilePath.empty( ) ) ?

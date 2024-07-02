@@ -71,16 +71,27 @@ bool EnumModulesEntry( HANDLE hProcess, std::function<bool( LDR_DATA_TABLE_ENTRY
 		return false;
 	}
 
-	if ( !ReadMemory( hProcess, PebBaseAddress, &Peb, sizeof( Peb ) ) )
+	for ( size_t i = 0; i < 5; i++ ) // when the process starting, the PEB is not initialized
 	{
-		LOGS( "[-] - [REMH] Get peb fail 1" );
-		return false;
-	}
+		if ( !ReadMemory( hProcess, PebBaseAddress, &Peb, sizeof( Peb ) ) )
+		{
+			LOGS( "[-] - [REMH] Get peb fail 1" );
+			return false;
+		}
 
-	if ( !ReadMemory( hProcess, Peb.Ldr, &PebLdr, sizeof( PebLdr ) ) )
-	{
-		LOGS( "[-] - [REMH] Get ldr fail 1" );
-		return false;
+		if ( !Peb.Ldr )
+		{
+			Sleep( 100 );
+			continue;
+		}
+
+		if ( !ReadMemory( hProcess, Peb.Ldr, &PebLdr, sizeof( PebLdr ) ) )
+		{
+			LOGS( "[-] - [REMH] Get ldr fail 1" );
+			return false;
+		}
+
+		break;
 	}
 
 	LIST_ENTRY* pLdrListHead = PebLdr.InLoadOrderModuleList.Flink;
@@ -122,19 +133,30 @@ bool EnumModulesEntry32( HANDLE hProcess, std::function<bool( LDR_DATA_TABLE_ENT
 
 	_PEB32 Peb32{ };
 
-	if ( !ReadMemory( hProcess, PebBaseAddress32, &Peb32, sizeof( Peb32 ) ) )
-	{
-		LOGS( "[-] - [REMH] Get peb fail 1" );
-		return false;
-	}
-
 	PEB_LDR_DATA32 PebLdr{ };
 
-	if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>(
-		static_cast<size_t>( Peb32.Ldr ) ), &PebLdr, sizeof( PebLdr ) ) )
+	for ( size_t i = 0; i < 5; i++ ) // when the process starting, the PEB is not initialized
 	{
-		LOGS( "[-] - [REMH] Get Ldr fail 1" );
-		return false;
+		if ( !ReadMemory( hProcess, PebBaseAddress32, &Peb32, sizeof( Peb32 ) ) )
+		{
+			LOGS( "[-] - [REMH] Get peb fail 1" );
+			return false;
+		}
+
+		if ( Peb32.Ldr == 0 )
+		{
+			Sleep( 100 );
+			continue;
+		}
+
+		if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>(
+			static_cast<size_t>( Peb32.Ldr ) ), &PebLdr, sizeof( PebLdr ) ) )
+		{
+			LOGS( "[-] - [REMH] Get Ldr fail 1" );
+			return false;
+		}
+
+		break;
 	}
 
 	LIST_ENTRY32* pLdrListHead = reinterpret_cast<LIST_ENTRY32*>(
@@ -163,6 +185,77 @@ bool EnumModulesEntry32( HANDLE hProcess, std::function<bool( LDR_DATA_TABLE_ENT
 	} while ( pLdrListHead != pLdrCurrentNode );
 
 	return false;
+}
+
+void RemoteModule::EnumModulesInfo( HANDLE hProcess, bool bIs64bit, std::function<bool( sPebModuleInfo* )> fnCallback ) {
+
+	if ( bIs64bit )
+	{
+		EnumModulesEntry( hProcess, [ & ]( LDR_DATA_TABLE_ENTRY* pEntry ) -> bool {
+
+			sPebModuleInfo ModuleInfo{ };
+
+			if ( pEntry->BaseDllName.Length > 0 )
+			{
+				if ( !ReadMemory( hProcess, pEntry->BaseDllName.Buffer, ModuleInfo.BaseDllName, pEntry->BaseDllName.Length ) )
+				{
+					LOGS( "[-] - [REMH] Could not read list entry DLL name");
+
+					return false;
+				}
+			}
+
+
+			if ( pEntry->FullDllName.Length > 0 )
+			{
+				if ( !ReadMemory( hProcess, pEntry->FullDllName.Buffer, ModuleInfo.FullDllName, pEntry->FullDllName.Length ) )
+				{
+					LOGS( "[-] - [REMH] Could not read list entry DLL FullDllName" );
+
+					return false;
+				}
+			}
+
+			ModuleInfo.SizeOfImage = pEntry->SizeOfImage;
+			ModuleInfo.DllBase     = pEntry->DllBase;
+			ModuleInfo.EntryPoint  = pEntry->EntryPoint;
+
+			return fnCallback( &ModuleInfo );
+		} );
+	}
+	else
+	{
+		EnumModulesEntry32( hProcess, [ & ]( LDR_DATA_TABLE_ENTRY32* pEntry ) -> bool {
+
+			sPebModuleInfo ModuleInfo{ };
+
+			if ( pEntry->BaseDllName.Length > 0 )
+			{
+				if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>( static_cast<size_t>( pEntry->BaseDllName.Buffer ) ), ModuleInfo.BaseDllName, pEntry->BaseDllName.Length ) )
+				{
+					LOGS( "[-] - [REMH] Could not read list entry DLL name." );
+
+					return false;
+				}
+			}
+
+			if ( pEntry->FullDllName.Length > 0 )
+			{
+				if ( !ReadMemory( hProcess, reinterpret_cast<LPCVOID>( static_cast<size_t>( pEntry->FullDllName.Buffer ) ), ModuleInfo.FullDllName, pEntry->FullDllName.Length ) )
+				{
+					LOGS( "[-] - [REMH] Could not read list entry DLL FullDllName." );
+
+					return false;
+				}
+			}
+
+			ModuleInfo.SizeOfImage = pEntry->SizeOfImage;
+			ModuleInfo.DllBase     = reinterpret_cast<LPVOID>( static_cast<std::size_t>( pEntry->DllBase ) );
+			ModuleInfo.EntryPoint  = reinterpret_cast<LPVOID>( static_cast<std::size_t>( pEntry->EntryPoint ) );
+
+			return fnCallback( &ModuleInfo );
+		} );
+	}
 }
 
 static 
@@ -344,7 +437,6 @@ std::unique_ptr<std::uint8_t[]> GetModuleLdrEntryFromBase( HANDLE hProcess,
 	return pLdrEntry;
 }
 
-
 HMODULE RemoteModule::GetHandleW( HANDLE hProcess,
 	const wchar_t* pModuleName, 
 	ULONG* pOutModuleSize, 
@@ -418,6 +510,7 @@ std::size_t RemoteModule::GetSizeOfModuleFromPage( HANDLE hProcess, PVOID pModul
 	return szOfImage;
 }
 
+// https://doxygen.reactos.org/de/d86/dll_2win32_2psapi_2psapi_8c_source.html
 static 
 std::wstring GetProcessImageFileNameW( HANDLE hProcess )
 {
@@ -437,7 +530,7 @@ std::wstring GetProcessImageFileNameW( HANDLE hProcess )
 	NTSTATUS Status = ApiRemote::QueryInformationProcess( hProcess,
 		ProcessImageFileName,
 		ImageFileName,
-		BufferSize,
+		static_cast<ULONG>( BufferSize ),
 		nullptr );
 
 	if ( Status == STATUS_INFO_LENGTH_MISMATCH )

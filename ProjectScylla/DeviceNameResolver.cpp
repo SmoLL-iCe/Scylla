@@ -36,45 +36,6 @@ void DeviceNameResolver::initDeviceNameList( )
     fixVirtualDevices( );
 }
 
-//std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sourcePath )
-//{
-//    //
-//    if ( deviceNameList.empty( ) )
-//    {
-//        initDeviceNameList( );
-//    }
-//
-//    if ( sourcePath.size( ) < 0x18 )
-//        return sourcePath;
-//
-//    auto isDevice = sourcePath.find( L"Device" ) == 1;
-//
-//    if ( !isDevice && sourcePath.find( L"HarddiskVolume" ) != 0 )
-//    {
-//        return sourcePath;
-//    }
-//
-//    for ( std::uint32_t i = 0; i < deviceNameList.size( ); i++ )
-//    {
-//        TCHAR* targetPath = new TCHAR[ MAX_PATH * 2 ];
-//
-//        std::wstring longName = (isDevice) ? ( deviceNameList[ i ].longName ) : ( deviceNameList[ i ].longName + 8 );
-//        size_t longNameLength = deviceNameList[ i ].longNameLength - (( isDevice ) ? 1 : 9);
-//        
-//        if ( !_tcsnicmp( longName.data( ), sourcePath.data( ), longNameLength ) && sourcePath[ longNameLength + 1 ] == TEXT( '\\' ) )
-//        {
-//            _tcscpy_s( targetPath, MAX_PATH, deviceNameList[ i ].shortName );
-//
-//            _tcscat_s( targetPath, MAX_PATH, sourcePath.data( ) + longNameLength + 1 );
-//
-//            return targetPath;
-//        }
-//
-//    }
-//
-//    return sourcePath;
-//}
-
 std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sourcePath )
 {
     if ( deviceNameList.empty( ) )

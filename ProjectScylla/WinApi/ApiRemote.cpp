@@ -105,8 +105,6 @@ LPVOID __stdcall ApiRemote::VirtualAllocEx( HANDLE hProcess, LPVOID lpAddress, S
 
 SIZE_T __stdcall ApiRemote::VirtualQueryEx( HANDLE hProcess, LPVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength )
 {
-
-	return ::VirtualQueryEx( hProcess, lpAddress, lpBuffer, dwLength );
 	SIZE_T rSize;
 
 	const NTSTATUS Status = ApiRemote::QueryVirtualMemory( hProcess, lpAddress, MemoryBasicInformation, lpBuffer, sizeof( MEMORY_BASIC_INFORMATION ), &rSize );
@@ -124,8 +122,8 @@ BOOL __stdcall ApiRemote::VirtualProtectEx( HANDLE hProcess, LPVOID lpAddress, S
 
 	SIZE_T Size = dwSize;
 
-	const NTSTATUS Status = NtProtectVirtualMemory( hProcess, &pAddress, &Size, flNewProtect, lpflOldProtect )
-		;
+	const NTSTATUS Status = NtProtectVirtualMemory( hProcess, &pAddress, &Size, flNewProtect, lpflOldProtect );
+
 	return  ( Status == 0 );
 }
 
