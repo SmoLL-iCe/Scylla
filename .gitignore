@@ -12,11 +12,7 @@ ipch/
 *.ini
 Scylla.vcxproj.user
 
-#tinyxml ignore + exceptions
-tinyxml/*
-!tinyxml/README
-!tinyxml/tinyxml.vcxproj*
 
-#WTL ignore + exceptions
-WTL/*
-!WTL/README
+tinyxml/tinyxml
+tinyxml/Win32
+tinyxml/x64
