@@ -8,12 +8,14 @@
 #include "Architecture.h"
 #include "ProcessLister.h"
 #include "WinApi/RemoteModule.h"
+#include <Psapi.h>
 
 HANDLE ProcessAccessHelp::hProcess = 0;
 
 std::uintptr_t ProcessAccessHelp::uTargetImageBase = 0;
 std::uintptr_t ProcessAccessHelp::uTargetSizeOfImage = 0;
 std::uintptr_t ProcessAccessHelp::uMaxValidAddress = 0;
+bool ProcessAccessHelp::bIsKernelModule = false;
 
 bool ProcessAccessHelp::is64BitProcess = false;
 std::vector<ModuleInfo> ProcessAccessHelp::vModuleList; //target process pModule list
@@ -543,6 +545,73 @@ bool ProcessAccessHelp::getProcessModules( HANDLE hProcess, std::vector<ModuleIn
 		} );
 
 	return true;
+}
+
+bool ProcessAccessHelp::getKernelModules( std::vector<ModuleInfo>& vModuleList )
+{
+	vModuleList.clear( );
+
+	NTSTATUS Status = 0;
+	DWORD NewSize, Count;
+
+	DWORD Size = sizeof( RTL_PROCESS_MODULES ) + 3 * sizeof( RTL_PROCESS_MODULE_INFORMATION );
+
+	std::unique_ptr<std::uint8_t[ ]> buffer = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ Size ] );
+
+	do
+	{
+		Status = NtQuerySystemInformation( SystemModuleInformation, buffer.get( ), Size, &Count );
+
+		if ( !NT_SUCCESS( Status ) )
+		{
+			if ( Status == STATUS_INFO_LENGTH_MISMATCH )
+			{
+				NewSize = Count;
+
+				if ( NewSize <= Size )
+				{
+					return FALSE;
+				}
+
+				Size = NewSize;
+
+				buffer = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ Size ] );
+			}
+			else
+			{
+				return FALSE;
+			}
+		}
+
+	} while ( !NT_SUCCESS( Status ) );
+
+	PRTL_PROCESS_MODULES Information = reinterpret_cast<PRTL_PROCESS_MODULES>( buffer.get( ) );
+
+	for ( size_t i = 0; i < Information->NumberOfModules; i++ )
+	{
+		auto pModule = &Information->Modules[ i ];
+
+		ModuleInfo Module{};
+
+		Module.uModBase         = reinterpret_cast<std::uintptr_t>( pModule->ImageBase );
+
+		Module.uModBaseSize     = pModule->ImageSize;
+			
+		Module.isAlreadyParsed  = false;
+
+		Module.parsing          = false;
+
+		std::string strModulePath = reinterpret_cast<char*>( pModule->FullPathName );
+
+		std::wstring wstrModulePath = DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring( strModulePath.begin( ), strModulePath.end( ) ) );
+
+		wcscpy_s( Module.pModulePath, wstrModulePath.c_str( ) );
+
+		vModuleList.push_back( Module );
+	}
+
+
+	return TRUE;
 }
 
 bool ProcessAccessHelp::getMemoryRegionFromAddress( std::uintptr_t uAddress, std::uintptr_t* pMemoryRegionBase, std::size_t* pMemoryRegionSize )

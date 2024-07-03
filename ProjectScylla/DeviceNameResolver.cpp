@@ -36,6 +36,22 @@ void DeviceNameResolver::initDeviceNameList( )
     fixVirtualDevices( );
 }
 
+static 
+std::wstring ExpandEnvironmentSystemRoot( const std::wstring& input )
+{
+    std::wstring output = L"%SystemRoot%" + input.substr( 11 );
+
+    wchar_t buffer[ MAX_PATH ]{};
+
+    DWORD result = ExpandEnvironmentStrings( output.c_str( ), buffer, MAX_PATH );
+    if ( result == 0 || result > MAX_PATH )
+    {
+        return L"";
+    }
+
+    return std::wstring( buffer );
+}
+
 std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sourcePath )
 {
     if ( deviceNameList.empty( ) )
@@ -45,6 +61,16 @@ std::wstring DeviceNameResolver::resolveDeviceLongNameToShort( std::wstring sour
 
     if ( sourcePath.size( ) < 0x18 )
         return sourcePath;
+
+    if ( sourcePath.find( L"SystemRoot" ) != std::wstring::npos )
+    {
+        return ExpandEnvironmentSystemRoot( sourcePath );
+    }
+
+    if ( sourcePath.find( LR"(\??\)" ) != std::wstring::npos )
+    {
+        return sourcePath.substr( 4 );
+    }
 
     bool isDevice = sourcePath.find( L"Device" ) == 1;
 

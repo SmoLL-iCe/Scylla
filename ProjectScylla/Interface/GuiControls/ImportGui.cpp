@@ -128,9 +128,9 @@ bool GuiContext::SwapIatFunctionShow( ImportThunk* importThunk ) {
  
 bool GuiContext::IatTab( )
 {
-    if ( m_currentProcess.PID == 0 ||
+    if ( ( m_currentProcess.PID == 0 ||
         !ProcessAccessHelp::hProcess ||
-        ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE )
+        ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE ) && !m_scyllaCtx->isKernelModule( ) )
     {
         ImGui::SetActiveTabIndex( 0 );
         return false;

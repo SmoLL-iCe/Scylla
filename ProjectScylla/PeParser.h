@@ -140,6 +140,9 @@ protected:
 
 	std::unique_ptr<std::uint8_t[ ]> pHeaderMemory;
 
+	std::uint8_t* pHeader;
+
+
 	std::vector<std::uint8_t> vImageData;
 	std::uint8_t* pImageData = nullptr;
 	std::size_t szImageDataSize = 0;
@@ -149,7 +152,7 @@ protected:
 	HANDLE hFile;
 	std::uint32_t uFileSize;
 
-	bool readPeHeaderFromData( );
+	//bool readPeHeaderFromData( );
 	bool readPeHeaderFromFile( bool bReadSectionHeaders );
 	bool readPeHeaderFromProcess( bool bReadSectionHeaders );
 
@@ -158,7 +161,7 @@ protected:
 	void getDosAndNtHeader( std::uint8_t* pMemory, LONG size );
 	std::uint32_t calcCorrectPeHeaderSize( bool bReadSectionHeaders ) const;
 	std::uint32_t getImageSize() const;
-	std::uint32_t getInitialHeaderReadSize( );
+	std::uint32_t getInitialHeaderReadSize( bool bReadSectionHeaders );
 	bool openFileHandle( );
 	void closeFileHandle( );
 	void initClass( );

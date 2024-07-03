@@ -162,16 +162,16 @@ void GuiContext::Render( ) {
     ImGui::SetNextWindowPos( { 0, m_pWindowInstance->getFramePos( ).y } ); // ImGuiCond_FirstUseEver
     ImGui::SetNextWindowSize( m_pWindowInstance->getSize( ) );
 
-    auto window_flags = 0;
-    window_flags |= ImGuiWindowFlags_NoScrollbar;
-    window_flags |= ImGuiWindowFlags_NoScrollWithMouse;
-    window_flags |= ImGuiWindowFlags_NoMove;
-    window_flags |= ImGuiWindowFlags_NoResize;
-    window_flags |= ImGuiWindowFlags_NoCollapse;
-    //window_flags |= ImGuiWindowFlags_NoTitleBar;
+    auto uWindowFlags = 0;
+    uWindowFlags |= ImGuiWindowFlags_NoScrollbar;
+    uWindowFlags |= ImGuiWindowFlags_NoScrollWithMouse;
+    uWindowFlags |= ImGuiWindowFlags_NoMove;
+    uWindowFlags |= ImGuiWindowFlags_NoResize;
+    uWindowFlags |= ImGuiWindowFlags_NoCollapse;
+    //uWindowFlags |= ImGuiWindowFlags_NoTitleBar;
 
 
-    if ( ImGui::Begin( "aaah", nullptr, window_flags ) )
+    if ( ImGui::Begin( "ImScylla", nullptr, uWindowFlags ) )
     {
         auto vPos = ImGui::GetCurrentWindow( )->DC.CursorPos;
         if ( m_lockInterface )
@@ -393,27 +393,32 @@ void GuiContext::Render( ) {
         //  auto future = std::async( std::launch::async, &ScyllaContext::setProcessById, &scyllaCtx, GetCurrentProcessId( ) );
         std::thread( [ & ]( )
             {
-                ProcessAccessHelp::getProcessModules( GetCurrentProcess( ), ProcessAccessHelp::vOwnModuleList );
+                //ProcessAccessHelp::getProcessModules( GetCurrentProcess( ), ProcessAccessHelp::vOwnModuleList );
 
-                //scyllaCtx->setProcessById( GetCurrentProcessId( ) );
-                //scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
-                auto status = m_scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
+                ////scyllaCtx->setProcessById( GetCurrentProcessId( ) );
+                ////scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export64.exe" ) );
+                //auto status = m_scyllaCtx->setProcessById( ProcessAccessHelp::getProcessByName( L"export32pk.exe" ) );
 
-                if ( status == 0 )
-                {
-                    m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+                //if ( status == 0 )
+                //{
+                //    m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
 
-                    if ( !ProcessAccessHelp::vModuleList.empty( ) )
-                    {
-                        m_currentModule = ProcessAccessHelp::vModuleList[ 0 ];
-                    }
+                //    if ( !ProcessAccessHelp::vModuleList.empty( ) )
+                //    {
+                //        m_currentModule = ProcessAccessHelp::vModuleList[ 0 ];
+                //    }
 
-                    m_scyllaCtx->getImportsActionHandler( );
+                //    m_scyllaCtx->getImportsActionHandler( );
 
-                    m_currentProcess = *m_scyllaCtx->getCurrentProcess( );
+                //    m_currentProcess = *m_scyllaCtx->getCurrentProcess( );
 
-                    ImGui::SetActiveTabIndex( 2 );
-                }
+                //    ImGui::SetActiveTabIndex( 2 );
+                //}
+
+                //m_scyllaCtx->setKernelModule( true );
+#ifdef _DEBUG
+                m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+#endif // _DEBUG
 
             } ).detach( );
 

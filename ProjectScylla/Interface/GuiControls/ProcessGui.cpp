@@ -175,7 +175,9 @@ void GuiContext::ProcessesTab( ) {
 
                                 getIatHexString( );
 
+#ifdef _DEBUG
                                 m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+#endif // _DEBUG
 
                                 if ( !ProcessAccessHelp::vModuleList.empty( ) )
                                 {

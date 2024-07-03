@@ -444,10 +444,10 @@ DWORD PeParser::getInitialHeaderReadSize(bool readSectionHeaders)
 {
 	DWORD readSize = sizeof(IMAGE_DOS_HEADER) + 0x300 + sizeof(IMAGE_NT_HEADERS64);
 
-	//if (readSectionHeaders)
-	//{
-	//	readSize += (10 * sizeof(IMAGE_SECTION_HEADER));
-	//}
+	if (readSectionHeaders)
+	{
+		readSize += 0x1000;
+	}
 
 	return readSize;
 }

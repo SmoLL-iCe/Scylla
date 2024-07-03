@@ -46,8 +46,7 @@ public:
 
 	std::vector<ApiInfo*> vApiList;
 
-	ModuleInfo( )
-	{
+	ModuleInfo( ) {
 		uModBase = 0;
 		uModBaseSize = 0;
 		nPriority = 1;
@@ -89,6 +88,8 @@ public:
 	static std::uintptr_t uTargetSizeOfImage;
 	static std::uintptr_t uMaxValidAddress;
 
+	static bool bIsKernelModule;
+
 	static bool is64BitProcess;
 
 	//static ModuleInfo * selectedModule;
@@ -123,7 +124,11 @@ public:
 	 * Get all modules from a process
 	 */
 	static bool getProcessModules( HANDLE hProcess, std::vector<ModuleInfo>& vModuleList );
+	/*
+	 * Get all modules from kernel
+	 */
 
+	static bool getKernelModules( std::vector<ModuleInfo>& vModuleList );
 
 	/*
 	 * file mapping view with different access level

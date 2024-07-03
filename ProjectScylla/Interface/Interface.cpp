@@ -1,12 +1,7 @@
 #include "Interface.h"
 #include "GuiContext.h"
 
-extern "C" __declspec( dllexport ) int MyFunc( long parm1 ) {
-	return 0;
-}
-
 std::unique_ptr<GuiContext> guiContext = nullptr;
-
 
 static 
 void FrameControls( glWindow* pWindowInstance )

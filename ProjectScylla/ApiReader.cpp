@@ -22,6 +22,11 @@ void ApiReader::readApisFromModuleList( )
 {
 	readExportTableAlwaysFromDisk = Config::APIS_ALWAYS_FROM_DISK;
 
+	if ( bIsKernelModule )
+	{
+		readExportTableAlwaysFromDisk = true;
+	}
+
 	for ( auto& pModule : vModuleList )
 	{
 		setModulePriority( &pModule );
@@ -46,7 +51,6 @@ void ApiReader::readApisFromModuleList( )
 void ApiReader::parseModule( ModuleInfo* pModule )
 {
 	pModule->parsing = true;
-
 
 	if ( isWinSxSModule( pModule ) || ( readExportTableAlwaysFromDisk && !isModuleLoadedInOwnProcess( pModule ) ) )
 	{
@@ -437,6 +441,7 @@ bool ApiReader::findApiInExportTable( ModuleInfo* pModule, std::unique_ptr<PePar
 }
 
 void ApiReader::setModulePriority( ModuleInfo* pModule ) {
+
 	const wchar_t* pModuleFileName = pModule->getFilename( );
 
 	if ( !_wcsicmp( pModuleFileName, L"kernelbase.dll" ) ) {

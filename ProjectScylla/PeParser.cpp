@@ -208,7 +208,9 @@ bool PeParser::initializeFromCopyData( std::uint8_t* pData, std::size_t szData )
 	pImageData = vImageData.data( );
 	szImageDataSize = vImageData.size( );
 
-	if ( !readPeHeaderFromData( ) )
+	getDosAndNtHeader( pImageData, szImageDataSize );
+
+	if ( !isValidPeFile( ) )
 	{
 		return false;
 	}
@@ -264,7 +266,9 @@ bool PeParser::initializeFromMapped( void* pModule, const std::size_t szModuleSi
 
 	szImageDataSize = getDataSizeValidation( pData, szImageDataSize );
 
-	if ( !readPeHeaderFromData( ) )
+	getDosAndNtHeader( pData, szImageDataSize );
+
+	if ( !isValidPeFile( ) )
 	{
 		return false;
 	}
@@ -273,15 +277,17 @@ bool PeParser::initializeFromMapped( void* pModule, const std::size_t szModuleSi
 
 	bool bResult = true;
 
-	vListPeSection.reserve( getNumberOfSections( ) );
+	auto uTotalSections = getNumberOfSections( );
 
-	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
+	for ( std::uint16_t i = 0; i < uTotalSections; i++ )
 	{
-		std::uintptr_t uOffset = vListPeSection[ i ].sectionHeader.VirtualAddress;
+		auto& CurrentSection = vListPeSection[ i ];
 
-		vListPeSection[ i ].uNormalSize = vListPeSection[ i ].sectionHeader.Misc.VirtualSize;
+		std::uintptr_t uOffset = CurrentSection.sectionHeader.VirtualAddress;
 
-		if ( !readSectionFromData( uOffset, vListPeSection[ i ] ) )
+		CurrentSection.uNormalSize = CurrentSection.sectionHeader.Misc.VirtualSize;
+
+		if ( !readSectionFromData( uOffset, CurrentSection ) )
 		{
 			bResult = false;
 		}
@@ -448,31 +454,32 @@ std::uint32_t PeParser::getEntryPoint( ) const
 		isPE64( ) ? pNTHeader64->OptionalHeader.AddressOfEntryPoint : 0;
 }
 
-bool PeParser::readPeHeaderFromData( )
-{
-	if ( !szImageDataSize )
-		return false;
-
-	auto szHeaders = sizeof( IMAGE_DOS_HEADER ) + 0x300 + sizeof( IMAGE_NT_HEADERS64 );
-
-	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>(
-		new std::uint8_t[ szHeaders ]
-	);
-
-	std::memcpy( pHeaderMemory.get( ), pImageData, szHeaders );
-
-	getDosAndNtHeader( pHeaderMemory.get( ), static_cast<LONG>( szImageDataSize ) );
-
-	return isValidPeFile( );
-}
+//bool PeParser::readPeHeaderFromData( )
+//{
+//	if ( !szImageDataSize )
+//		return false;
+//
+//	auto szHeaders = 0x1000;
+//
+//	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>(
+//		new std::uint8_t[ szHeaders ]
+//	);
+//
+//	std::memcpy( pHeaderMemory.get( ), pImageData, szHeaders );
+//
+//	getDosAndNtHeader( pHeaderMemory.get( ), static_cast<LONG>( szImageDataSize ) );
+//
+//	return isValidPeFile( );
+//}
 
 bool PeParser::readPeHeaderFromProcess( bool bReadSectionHeaders )
 {
 	std::uint32_t uCorrectSize = 0;
 
-	std::uint32_t uReadSize = getInitialHeaderReadSize( );
+	std::uint32_t uReadSize = getInitialHeaderReadSize( bReadSectionHeaders );
 
 	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ uReadSize ] );
+
 
 	if ( !ProcessAccessHelp::readMemoryPartlyFromProcess( uModuleBaseAddress, pHeaderMemory.get( ), uReadSize ) )
 		return false;
@@ -504,7 +511,7 @@ bool PeParser::readPeHeaderFromFile( bool bReadSectionHeaders )
 	std::uint32_t uCorrectSize = 0;
 	DWORD dwNumberOfBytesRead = 0;
 
-	std::uint32_t uReadSize = getInitialHeaderReadSize( );
+	std::uint32_t uReadSize = getInitialHeaderReadSize( bReadSectionHeaders );
 
 	pHeaderMemory = std::unique_ptr<std::uint8_t[ ]>( new std::uint8_t[ uReadSize ] );
 
@@ -613,9 +620,11 @@ bool PeParser::getSectionHeaders( )
 
 	vListPeSection.clear( );
 
-	vListPeSection.reserve( getNumberOfSections( ) );
+	auto uTotalSections = getNumberOfSections( );
 
-	for ( std::uint16_t i = 0; i < getNumberOfSections( ); i++ )
+	vListPeSection.reserve( uTotalSections );
+
+	for ( std::uint16_t i = 0; i < uTotalSections; i++ )
 	{
 		memcpy_s( &peFileSection.sectionHeader, sizeof( IMAGE_SECTION_HEADER ), pSection, sizeof( IMAGE_SECTION_HEADER ) );
 
@@ -725,14 +734,14 @@ std::uint32_t PeParser::getImageSize( ) const {
 
 }
 
-std::uint32_t PeParser::getInitialHeaderReadSize( )
+std::uint32_t PeParser::getInitialHeaderReadSize( bool bReadSectionHeaders )
 {
 	std::uint32_t uReadSize = sizeof( IMAGE_DOS_HEADER ) + 0x300 + sizeof( IMAGE_NT_HEADERS64 );
 
-	//if (bReadSectionHeaders)
-	//{
-	//	uReadSize += (10 * sizeof(IMAGE_SECTION_HEADER));
-	//}
+	if (bReadSectionHeaders)
+	{
+		uReadSize += 0x1000;
+	}
 
 	return uReadSize;
 }

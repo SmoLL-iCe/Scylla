@@ -3,17 +3,17 @@
 
 bool GuiContext::ModulesTab( ) {
 
-    if ( m_currentProcess.PID == 0 || 
+    if ( (m_currentProcess.PID == 0 || 
         !ProcessAccessHelp::hProcess ||
-        ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE )
+        ProcessAccessHelp::hProcess == INVALID_HANDLE_VALUE) && !m_scyllaCtx->isKernelModule( ) )
     {
         ImGui::SetActiveTabIndex( 0 );
         return false;
     }
 
-    std::vector<ModuleInfo> vModuleList{};
+    std::vector<ModuleInfo> vModuleList = {};
 
-    ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, vModuleList );
+    m_scyllaCtx->getModules( vModuleList );
 
     if ( vModuleList.empty( ) )
     {
@@ -37,7 +37,9 @@ bool GuiContext::ModulesTab( ) {
 
     if ( !dllIcon )
     {
-        IconList::ExtractIconFromExtension( L".dll", dllIcon );
+        IconList::ExtractIconFromExtension( 
+            L".dll", 
+            dllIcon );
 	}
 
     ImGui::BeginChildList( __LINE__, fInnerWidth, fInnerHeight - fHeightFilter, [ this, fInnerWidth, &vModuleList ]( )
@@ -73,7 +75,9 @@ bool GuiContext::ModulesTab( ) {
 
                 const auto ApiListSize = ( itReaderModule != vReaderModuleList.end( ) ) ? itReaderModule->vApiList.size( ) : 0;
 
-                const auto strFmt = std::format( "\t0x{:016X} {} - Exports ({})", pModuleInfo.uModBase, Utils::wstrToStr( pModuleInfo.getFilename( ) ), ApiListSize );
+                const auto strFmt = std::format( "\t0x{:016X} {} - Exports ({})", pModuleInfo.uModBase, Utils::wstrToStr( 
+                    m_scyllaCtx->isKernelModule() ? pModuleInfo.pModulePath : pModuleInfo.getFilename( )
+                ), ApiListSize );
 
                 const bool isSelected = ( m_currentModule.uModBase != 0 ) ? ( m_currentModule.uModBase == pModuleInfo.uModBase ) : false;
 
@@ -101,11 +105,22 @@ bool GuiContext::ModulesTab( ) {
 
                     m_lockInterface = true;
 
-                    m_scyllaCtx->setTargetModule( m_currentModule.uModBase, m_currentModule.uModBaseSize, m_currentModule.pModulePath );
+                    if ( m_scyllaCtx->isKernelModule( ) )
+                    {
+                        m_scyllaCtx->setTargetKernelModule( m_currentModule.uModBase, m_currentModule.uModBaseSize, m_currentModule.pModulePath );
+                    }
+                    else { 
+
+                        m_scyllaCtx->setTargetModule( m_currentModule.uModBase, m_currentModule.uModBaseSize, m_currentModule.pModulePath );
+                    }
 
                     getIatHexString( );
 
+                    m_scyllaCtx->getImportsActionHandler( );
+
+#ifdef _DEBUG
                     m_scyllaCtx->setDefaultFolder( LR"(X:\_\testScy\)" );
+#endif // _DEBUG
 
                     ImGui::SetActiveTabIndex( 2 );
 

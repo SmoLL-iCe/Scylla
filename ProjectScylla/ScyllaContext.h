@@ -18,9 +18,14 @@ public:
 	ScyllaContext( const std::wstring& strProcessName );
 	~ScyllaContext( );
 
+	bool setTargetKernelModule( const std::wstring& strModuleName );
+	bool setTargetKernelModule( std::uintptr_t uBaseModule );
+	bool setTargetKernelModule( std::uintptr_t uBaseModule, std::uintptr_t uModuleSize, const std::wstring& strModulePath );
+
 	bool setTargetModule( const std::wstring& strModuleName );
 	bool setTargetModule( std::uintptr_t uBaseModule );
 	bool setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t uModuleSize, const std::wstring& strModulePath );
+
 	void dumpActionHandler( );
 	void dumpFixActionHandler( );
 	void peRebuildActionHandler( );
@@ -35,6 +40,13 @@ public:
 	ImportsHandling* getImportsHandling( );
 	ApiReader* getApiReader( );
 	Process * getCurrentProcess( );
+
+	void getModules( std::vector<ModuleInfo>& vModuleList) const;
+
+	bool isKernelModule( );
+
+	void setKernelModule( bool bIsKernelModule );
+
 private:
 	void getPePreInfo( );
 	void checkSuspendProcess( );

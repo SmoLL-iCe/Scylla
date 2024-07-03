@@ -56,11 +56,13 @@ void ScyllaContext::getPePreInfo( )
 	if ( m_strDumpFullFilePath.empty( ) || !ProcessAccessHelp::uTargetImageBase )
 		return;
 
-	PeParser* pPeFile = ( Config::USE_PE_HEADER_FROM_DISK && !m_strDumpFullFilePath.empty( ) ) ?
+	bool bIsFromDisk = ( Config::USE_PE_HEADER_FROM_DISK && !m_strDumpFullFilePath.empty( ) );
+
+	PeParser* pPeFile = bIsFromDisk ?
 		new PeParser( m_strTargetFilePath.c_str( ), false ) :
 		new PeParser( ProcessAccessHelp::uTargetImageBase, false );
 
-	m_uEntryPoint = pPeFile->getEntryPoint( ) + m_processPtr.uImageBase;
+	m_uEntryPoint = pPeFile->getEntryPoint( ) + ProcessAccessHelp::uTargetImageBase;
 
 	auto pDirImport = pPeFile->getDirectory( IMAGE_DIRECTORY_ENTRY_IAT );
 
@@ -71,7 +73,7 @@ void ScyllaContext::getPePreInfo( )
 
 		if ( uAddressIAT && uSizeIAT )
 		{
-			m_uAddressIAT = uAddressIAT + m_processPtr.uImageBase;
+			m_uAddressIAT = uAddressIAT + ProcessAccessHelp::uTargetImageBase;
 			m_uSizeIAT = uSizeIAT;
 		}
 	}
@@ -125,6 +127,8 @@ int ScyllaContext::setProcessById( std::uint32_t uProcessId ) {
 
 	m_strTargetFilePath = m_processPtr.pModulePath;
 
+	getCurrentDefaultDumpFilename( );
+
 	getPePreInfo( );
 
 	ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, ProcessAccessHelp::vModuleList );
@@ -135,11 +139,81 @@ int ScyllaContext::setProcessById( std::uint32_t uProcessId ) {
 
 	Logs( "%s Imagebase: " PRINTF_DWORD_PTR_FULL_S " Size: %08X\n", __FUNCTION__, m_processPtr.uImageBase, m_processPtr.uImageSize );
 
-	getCurrentDefaultDumpFilename( );
 
 	m_bIsModule = false;
 
 	return SCY_ERROR_SUCCESS;
+}
+
+bool ScyllaContext::setTargetKernelModule( std::uintptr_t uBaseModule ) {
+
+	if ( !ProcessAccessHelp::bIsKernelModule )
+		return false;
+
+	return setTargetKernelModule( uBaseModule, 0, L"NoPath\\NoModule" );
+}
+
+bool ScyllaContext::setTargetKernelModule( const std::wstring& strModuleName ) {
+
+	if ( !ProcessAccessHelp::bIsKernelModule )
+		return false;
+
+	ProcessAccessHelp::getKernelModules( ProcessAccessHelp::vModuleList );
+
+	if ( ProcessAccessHelp::vModuleList.empty( ) )
+	{
+		Logs( "%s failed to list modules\n", __FUNCTION__ );
+		return false;
+	}
+
+	for ( auto& pModuleInfo : ProcessAccessHelp::vModuleList )
+	{
+		if ( std::wstring( pModuleInfo.pModulePath ).find( strModuleName ) != std::wstring::npos )
+		{
+			return setTargetKernelModule( pModuleInfo.uModBase, pModuleInfo.uModBaseSize, pModuleInfo.pModulePath );
+		}
+	}
+
+	return false;
+}
+
+bool ScyllaContext::setTargetKernelModule( std::uintptr_t uBaseModule, std::uintptr_t uModuleSize, const std::wstring& strModulePath ) {
+
+	if ( !ProcessAccessHelp::bIsKernelModule )
+		return false;
+
+	Logs( "%s setTargetModule %ls\n", __FUNCTION__, strModulePath.c_str( ) );
+
+	if ( ProcessAccessHelp::vModuleList.empty( ) )
+	{
+		Logs( "%s failed to list modules\n", __FUNCTION__ );
+		return false;
+	}
+
+	if ( m_processPtr.uImageBase != uBaseModule )
+	{
+		ProcessAccessHelp::uTargetImageBase = uBaseModule;
+
+		ProcessAccessHelp::uTargetSizeOfImage = uModuleSize;
+
+		m_strTargetFilePath = strModulePath;
+	}
+
+	getCurrentDefaultDumpFilename( );
+
+	getPePreInfo( );
+
+	m_bIsModule = true;
+
+	return true;
+}
+
+bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule ) {
+
+	if ( !ProcessAccessHelp::hProcess )
+		return false;
+
+	return setTargetModule( uBaseModule, 0, L"NoPath\\NoModule" );
 }
 
 bool ScyllaContext::setTargetModule( const std::wstring& strModuleName ) {
@@ -168,14 +242,6 @@ bool ScyllaContext::setTargetModule( const std::wstring& strModuleName ) {
 	return false;
 }
 
-bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule ) {
-
-	if ( !ProcessAccessHelp::hProcess )
-		return false;
-
-	return setTargetModule( uBaseModule, 0, L"NoPath\\NoModule" );
-}
-
 bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t uModuleSize, const std::wstring& strModulePath ) {
 
 	if ( !ProcessAccessHelp::hProcess )
@@ -198,9 +264,9 @@ bool ScyllaContext::setTargetModule( std::uintptr_t uBaseModule, std::uintptr_t 
 		m_strTargetFilePath = strModulePath;
 	}
 
-	getPePreInfo( );
-
 	getCurrentDefaultDumpFilename( );
+
+	getPePreInfo( );
 
 	m_bIsModule = true;
 
@@ -232,9 +298,6 @@ void ScyllaContext::checkSuspendProcess( )
 
 bool ScyllaContext::getCurrentDefaultDumpFilename( )
 {
-	if ( !m_processPtr.PID )
-		return false;
-
 	if ( !isFileExists( m_strTargetFilePath ) )
 	{
 		auto currrentDir = getCurrentDirectory( );
@@ -268,9 +331,6 @@ bool ScyllaContext::getCurrentDefaultDumpFilename( )
 }
 
 bool ScyllaContext::getCurrentModulePath( std::wstring& outModulePath ) const {
-
-	if ( !m_processPtr.PID )
-		return false;
 
 	outModulePath = m_strTargetFilePath;
 
@@ -525,9 +585,6 @@ void ScyllaContext::iatAutosearchActionHandler( )
 
 void ScyllaContext::getImportsActionHandler( )
 {
-	if ( !m_processPtr.PID )
-		return;
-
 	if ( !m_uAddressIAT || !m_uSizeIAT )
 		return;
 
@@ -630,4 +687,28 @@ ApiReader* ScyllaContext::getApiReader( ) {
 
 Process* ScyllaContext::getCurrentProcess( ) {
 	return &m_processPtr;
+}
+
+void ScyllaContext::getModules( std::vector<ModuleInfo>& vModuleList ) const {
+
+	( ProcessAccessHelp::bIsKernelModule ) ? ProcessAccessHelp::getKernelModules( vModuleList ) : ProcessAccessHelp::getProcessModules( ProcessAccessHelp::hProcess, vModuleList );
+}
+
+bool  ScyllaContext::isKernelModule( ) {
+	return ProcessAccessHelp::bIsKernelModule;
+}
+
+void ScyllaContext::setKernelModule( bool bIsKernelModule ) {
+
+	ProcessAccessHelp::bIsKernelModule = bIsKernelModule;
+
+	if ( ProcessAccessHelp::bIsKernelModule )
+	{
+		ProcessAccessHelp::is64BitProcess = true;
+
+		ProcessAccessHelp::getKernelModules( ProcessAccessHelp::vModuleList );
+
+		m_apiReader.readApisFromModuleList( );
+	}
+
 }
