@@ -36,11 +36,13 @@ public:
 	void clearAllImports();
 	void selectImports(bool invalid, bool suspect);
 
-	bool invalidateImport( ImportThunk * pImport );
-	//bool invalidateModule(CTreeItem item);
-	//bool setImport(CTreeItem item, const WCHAR * moduleName, const CHAR * apiName, WORD ordinal = 0, WORD hint = 0, bool valid = true, bool suspect = false);
-	//bool cutImport(CTreeItem item);
-	//bool cutModule(CTreeItem item);
+	bool invalidateImport(CTreeItem item);
+	bool invalidateModule(CTreeItem item);
+	bool setImport(CTreeItem item, const WCHAR * moduleName, const CHAR * apiName, WORD ordinal = 0, WORD hint = 0, bool valid = true, bool suspect = false);
+	bool cutImport(CTreeItem item);
+	bool cutModule(CTreeItem item);
+	//bool addImport(const WCHAR * moduleName, const CHAR * name, DWORD_PTR va, DWORD_PTR rva, WORD ordinal = 0, bool valid = true, bool suspect = false);
+	//bool addModule(const WCHAR * moduleName, DWORD_PTR firstThunk);
 
 	DWORD_PTR getApiAddressByNode(CTreeItem selectedTreeNode);
 	void scanAndFixModuleList();
@@ -54,28 +56,28 @@ private:
 	unsigned int m_invalidThunkCount;
 	unsigned int m_suspectThunkCount;
 
-	//struct TreeItemData
-	//{
-	//	bool isModule;
-	//	union
-	//	{
-	//		ImportModuleThunk * module;
-	//		ImportThunk * import;
-	//	};
-	//};
+	struct TreeItemData
+	{
+		bool isModule;
+		union
+		{
+			ImportModuleThunk * module;
+			ImportThunk * import;
+		};
+	};
 
-	//stdext::hash_map<HTREEITEM, TreeItemData> itemData;
+	stdext::hash_map<HTREEITEM, TreeItemData> itemData;
 
-	//void setItemData(CTreeItem item, const TreeItemData * data);
-	//TreeItemData * getItemData(CTreeItem item);
+	void setItemData(CTreeItem item, const TreeItemData * data);
+	TreeItemData * getItemData(CTreeItem item);
 
 	WCHAR stringBuffer[600];
 
-	//CMultiSelectTreeViewCtrl& TreeImports;
-	//CImageList TreeIcons;
-	//CIcon hIconCheck;
-	//CIcon hIconWarning;
-	//CIcon hIconError;
+	CMultiSelectTreeViewCtrl& TreeImports;
+	CImageList TreeIcons;
+	CIcon hIconCheck;
+	CIcon hIconWarning;
+	CIcon hIconError;
 
 	// They have to be added to the image list in that order!
 	enum Icon {
@@ -86,12 +88,15 @@ private:
 
 	void updateCounts();
 
-	//CTreeItem addDllToTreeView(CMultiSelectTreeViewCtrl& idTreeView, ImportModuleThunk * moduleThunk);
-	//CTreeItem addApiToTreeView(CMultiSelectTreeViewCtrl& idTreeView, CTreeItem parentDll, ImportThunk * importThunk);
+	CTreeItem addDllToTreeView(CMultiSelectTreeViewCtrl& idTreeView, ImportModuleThunk * moduleThunk);
+	CTreeItem addApiToTreeView(CMultiSelectTreeViewCtrl& idTreeView, CTreeItem parentDll, ImportThunk * importThunk);
 
-	//void updateImportInTreeView(const ImportThunk * importThunk, CTreeItem item);
-	//void updateModuleInTreeView(const ImportModuleThunk * importThunk, CTreeItem item);
+	void updateImportInTreeView(const ImportThunk * importThunk, CTreeItem item);
+	void updateModuleInTreeView(const ImportModuleThunk * importThunk, CTreeItem item);
 	
+	//bool isItemSelected(CTreeItem hItem);
+	//void unselectItem(CTreeItem htItem);
+	//bool selectItem(CTreeItem hItem, bool select = true);
 	bool findNewModules(std::map<DWORD_PTR, ImportThunk> & thunkList);
 
 	Icon getAppropiateIcon(const ImportThunk * importThunk);

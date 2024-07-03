@@ -300,7 +300,7 @@ bool PeParser::readPeSectionsFromProcess()
 
 		listPeSection[i].normalSize = listPeSection[i].sectionHeader.Misc.VirtualSize;
 
-		if (!readSectionFromData(readOffset, listPeSection[i]))
+		if (!readSectionFromProcess(readOffset, listPeSection[i]))
 		{
 			retValue = false;
 		}
@@ -444,10 +444,10 @@ DWORD PeParser::getInitialHeaderReadSize(bool readSectionHeaders)
 {
 	DWORD readSize = sizeof(IMAGE_DOS_HEADER) + 0x300 + sizeof(IMAGE_NT_HEADERS64);
 
-	if (readSectionHeaders)
-	{
-		readSize += 0x1000;
-	}
+	//if (readSectionHeaders)
+	//{
+	//	readSize += (10 * sizeof(IMAGE_SECTION_HEADER));
+	//}
 
 	return readSize;
 }
@@ -527,7 +527,7 @@ void PeParser::closeFileHandle()
 	}
 }
 
-bool PeParser::readSectionFromData(const DWORD_PTR readOffset, PeFileSection & peFileSection)
+bool PeParser::readSectionFromProcess(const DWORD_PTR readOffset, PeFileSection & peFileSection)
 {
 	return readSectionFrom(readOffset, peFileSection, true); //process
 }
